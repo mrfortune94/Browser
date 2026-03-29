@@ -34,4 +34,10 @@
     <string name="no_extensions">No extensions loaded</string>
     <string name="api_tab">API ⚡</string>
     <string name="action_api_intercept">API Intercept</string>
+    <string name="cors_bypass_on">🔓 CORS Bypass ON (via corsproxy.io)</string>
+    <string name="cors_bypass_off">🔒 CORS Bypass OFF</string>
+    <string name="action_cors_bypass">Toggle CORS/WAF Bypass</string>
+    <string name="action_load_extension">Load Extension from File</string>
+    <string name="save_api_requests">Save API Requests</string>
+    <string name="load_api_requests">Load Saved Requests</string>
 </resources>

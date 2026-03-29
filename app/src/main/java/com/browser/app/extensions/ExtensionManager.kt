@@ -1,6 +1,7 @@
 package com.browser.app.extensions
 
 import android.content.Context
+import android.net.Uri
 import android.webkit.WebView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -227,5 +228,43 @@ class ExtensionManager(private val context: Context) {
     fun getExtensions() = extensions.toList()
     fun toggleExtension(id: String, enabled: Boolean) {
         extensions.find { it.id == id }?.isEnabled = enabled
+    }
+
+    /**
+     * Loads an extension directly from a content URI returned by the system file picker.
+     * Copies the file to the app's cache directory then delegates to [loadExtensionFromZip].
+     * Returns the newly loaded [BrowserExtension] or null on failure.
+     */
+    suspend fun loadExtensionFromUri(context: Context, uri: Uri): BrowserExtension? = withContext(Dispatchers.IO) {
+        try {
+            val rawName = getDisplayName(context, uri) ?: "extension_${System.currentTimeMillis()}.zip"
+            // Sanitize: strip path separators, null bytes, and ".." traversal segments
+            val safeName = rawName
+                .replace(Regex("[/\\\\:*?\"<>|\u0000]"), "_")
+                .split(".")
+                .filter { it.isNotEmpty() && it != ".." }
+                .joinToString(".")
+                .take(128)
+                .ifBlank { "extension_${System.currentTimeMillis()}.zip" }
+            val tempFile = File(context.cacheDir, safeName)
+            context.contentResolver.openInputStream(uri)?.use { inp ->
+                tempFile.outputStream().use { out -> inp.copyTo(out) }
+            }
+            loadExtensionFromZip(tempFile)
+            extensions.lastOrNull()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun getDisplayName(context: Context, uri: Uri): String? {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) return cursor.getString(idx)
+            }
+        }
+        return uri.lastPathSegment
     }
 }

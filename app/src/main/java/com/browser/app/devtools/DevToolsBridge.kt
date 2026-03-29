@@ -330,8 +330,10 @@ class DevToolsBridge(
     }
 
     /**
-     * Injects XHR and fetch interceptors into the page so every API call is
+     * Injects XHR, fetch, and sendBeacon interceptors into the page so every API/webhook call is
      * forwarded to the DevTools API panel via [onApiRequest] / [onApiResponse].
+     * Also detects when requests originate from hidden contexts (hidden iframe, background tab)
+     * and sets isHidden=true so the DevTools can label them accordingly.
      */
     fun injectApiInterceptScript(webView: WebView) {
         val script = """
@@ -343,7 +345,23 @@ class DevToolsBridge(
                 var _XHROpen = XMLHttpRequest.prototype.open;
                 var _XHRSend = XMLHttpRequest.prototype.send;
                 var _XHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+                var _sendBeacon = navigator.sendBeacon ? navigator.sendBeacon.bind(navigator) : null;
                 var __reqCounter = 0;
+
+                /** Returns true when this window/iframe is invisible to the user. */
+                function detectHidden() {
+                    try {
+                        if (document.hidden === true) return true;
+                        if (window.frameElement) {
+                            var fe = window.frameElement;
+                            if (fe.hidden === true) return true;
+                            var cs = window.getComputedStyle(fe);
+                            if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return true;
+                            if (fe.offsetParent === null && fe.style.position !== 'fixed') return true;
+                        }
+                    } catch(e) {}
+                    return false;
+                }
 
                 // ---- Intercept fetch() ----
                 window.fetch = function(input, init) {
@@ -367,11 +385,13 @@ class DevToolsBridge(
                         catch(e) { body = String(init.body); }
                     }
                     var startTime = Date.now();
+                    var isHidden = detectHidden();
                     if (window.DevToolsBridge) {
                         try {
                             DevToolsBridge.onApiRequest(JSON.stringify({
                                 id: id, type: 'fetch', method: method.toUpperCase(),
-                                url: url, headers: headers, body: body, time: startTime
+                                url: url, headers: headers, body: body, time: startTime,
+                                isHidden: isHidden
                             }));
                         } catch(e) {}
                     }
@@ -415,6 +435,7 @@ class DevToolsBridge(
                     this.__fbt_method = method;
                     this.__fbt_url = url;
                     this.__fbt_headers = {};
+                    this.__fbt_hidden = detectHidden();
                     return _XHROpen.apply(this, arguments);
                 };
 
@@ -439,7 +460,8 @@ class DevToolsBridge(
                                 method: (self.__fbt_method || 'GET').toUpperCase(),
                                 url: self.__fbt_url || '',
                                 headers: self.__fbt_headers || {},
-                                body: bodyStr, time: startTime
+                                body: bodyStr, time: startTime,
+                                isHidden: self.__fbt_hidden === true
                             }));
                         } catch(e) {}
                     }
@@ -457,8 +479,80 @@ class DevToolsBridge(
                     });
                     return _XHRSend.apply(this, arguments);
                 };
+
+                // ---- Intercept navigator.sendBeacon (webhooks / analytics beacons) ----
+                if (_sendBeacon) {
+                    navigator.sendBeacon = function(url, data) {
+                        var id = ++__reqCounter;
+                        var isHidden = detectHidden();
+                        var bodyStr = null;
+                        if (data != null) {
+                            try { bodyStr = typeof data === 'string' ? data : JSON.stringify(data); }
+                            catch(e) { bodyStr = String(data); }
+                        }
+                        if (window.DevToolsBridge) {
+                            try {
+                                DevToolsBridge.onApiRequest(JSON.stringify({
+                                    id: id, type: 'webhook', method: 'BEACON',
+                                    url: url, headers: {}, body: bodyStr,
+                                    time: Date.now(), isHidden: isHidden
+                                }));
+                                // Beacons fire-and-forget; mark as sent immediately
+                                DevToolsBridge.onApiResponse(JSON.stringify({
+                                    id: id, status: 204, statusText: 'No Content (Beacon)',
+                                    headers: {}, body: '', duration: 0
+                                }));
+                            } catch(e) {}
+                        }
+                        return _sendBeacon(url, data);
+                    };
+                }
             })();
         """.trimIndent()
         webView.evaluateJavascript(script, null)
+    }
+
+    /**
+     * Injects a CORS proxy script so all cross-origin fetch/XHR calls are routed
+     * through [proxyUrl] (e.g. "https://corsproxy.io/?").  Call with enabled=false
+     * to deactivate the proxy without a page reload (the flag is flipped to false).
+     */
+    fun injectCorsProxyScript(webView: WebView, enabled: Boolean, proxyUrl: String = "https://corsproxy.io/?") {
+        if (enabled) {
+            val safeProxy = org.json.JSONObject.quote(proxyUrl)
+            val script = """
+                (function() {
+                    if (!window.__corsProxyInjected) {
+                        window.__corsProxyInjected = true;
+                        var PROXY = $safeProxy;
+                        var pageOrigin = window.location.origin;
+                        function proxyUrl(url) {
+                            if (!window.__corsProxyActive) return url;
+                            if (typeof url === 'string' && url.startsWith('http') && !url.startsWith(pageOrigin)) {
+                                return PROXY + encodeURIComponent(url);
+                            }
+                            return url;
+                        }
+                        var _f = window.fetch;
+                        window.fetch = function(input, init) {
+                            if (typeof input === 'string') input = proxyUrl(input);
+                            else if (input && typeof input === 'object' && input.url) {
+                                input = new Request(proxyUrl(input.url), input);
+                            }
+                            return _f.call(this, input, init);
+                        };
+                        var _o = XMLHttpRequest.prototype.open;
+                        XMLHttpRequest.prototype.open = function(method, url) {
+                            if (typeof url === 'string') arguments[1] = proxyUrl(url);
+                            return _o.apply(this, arguments);
+                        };
+                    }
+                    window.__corsProxyActive = true;
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(script, null)
+        } else {
+            webView.evaluateJavascript("window.__corsProxyActive = false;", null)
+        }
     }
 }

@@ -161,6 +161,21 @@
   .api-badge.xhr { background: #3c3c3c; color: #9cdcfe; }
   .api-badge.fetch { background: #1a3c5e; color: #4ec9b0; }
   .api-badge.replay { background: #2d4a1e; color: #85d96e; }
+  .api-badge.webhook { background: #4a1e6b; color: #c586c0; }
+  .api-hidden-badge { display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 9px; font-weight: bold; background: #3c2a00; color: #f0a500; border: 1px solid #f0a500; margin-left: 3px; vertical-align: middle; }
+
+  /* Save / Load sessions */
+  #api-save-btn { background: #2d5a1e; color: #85d96e; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #api-save-btn:hover { background: #3a7228; }
+  #api-load-btn { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #api-load-btn:hover { background: #555; }
+  #api-sessions-panel { background: #1a1a1a; border: 1px solid #3c3c3c; border-top: none; padding: 8px; flex-shrink: 0; }
+  #api-sessions-panel.hidden { display: none; }
+  #api-sessions-list { max-height: 120px; overflow-y: auto; margin-top: 4px; }
+  .session-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #2a2a2a; font-size: 10px; }
+  .session-item:hover { background: #2d2d2d; }
+  .session-load-btn { background: #0e639c; color: #fff; border: none; padding: 2px 8px; cursor: pointer; font-size: 10px; }
+  .session-del-btn { background: #440000; color: #f44747; border: none; padding: 2px 6px; cursor: pointer; font-size: 10px; margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -242,8 +257,14 @@
   <div id="panel-api" class="panel">
     <div id="api-toolbar">
       <button id="api-clear" onclick="clearApi()">Clear</button>
+      <button id="api-save-btn" onclick="saveApiSession()">💾 Save</button>
+      <button id="api-load-btn" onclick="toggleSessionsPanel()">📂 Load</button>
       <input id="api-filter" type="text" placeholder="Filter by URL..." oninput="filterApi()">
       <span id="api-count">0 requests</span>
+    </div>
+    <div id="api-sessions-panel" class="hidden">
+      <div style="color:#dcdcaa;font-size:11px;margin-bottom:4px;">Saved Sessions (stored locally):</div>
+      <div id="api-sessions-list"><span style="color:#555;font-size:10px">Loading…</span></div>
     </div>
     <div id="api-split">
       <div id="api-list-wrap">
@@ -760,8 +781,10 @@ function buildApiRowHtml(req) {
   var statusClass = !req.status ? '' : (req.status >= 200 && req.status < 300) ? 'status-ok' :
     (req.status >= 300 && req.status < 400) ? 'status-redirect' : 'status-err';
   var timeText = req.duration != null ? req.duration + 'ms' : '…';
-  var badge = '<span class="api-badge ' + escHtml(req.type || 'fetch') + '">' + escHtml((req.type || 'fetch').toUpperCase()) + '</span>';
-  return '<td>' + badge + '</td>' +
+  var badgeType = req.type || 'fetch';
+  var badge = '<span class="api-badge ' + escHtml(badgeType) + '">' + escHtml(badgeType.toUpperCase()) + '</span>';
+  var hiddenBadge = req.isHidden ? '<span class="api-hidden-badge">HIDDEN</span>' : '';
+  return '<td>' + badge + hiddenBadge + '</td>' +
     '<td class="' + methodClass + '">' + escHtml(req.method || 'GET') + '</td>' +
     '<td title="' + escHtml(req.url) + '">' + escHtml(shortUrl) + '</td>' +
     '<td class="' + statusClass + '">' + statusText + '</td>' +
@@ -929,8 +952,94 @@ function clearApi() {
   selectedApiIdx = -1;
   document.getElementById('api-body').innerHTML = '';
   document.getElementById('api-detail-pane').classList.add('hidden');
+  // Also close sessions panel if open
+  document.getElementById('api-sessions-panel').classList.add('hidden');
+  _sessionsPanelVisible = false;
   updateApiCount();
 }
+
+// ---- Save / Load API Sessions ----
+var _sessionsPanelVisible = false;
+
+function saveApiSession() {
+  if (apiRequests.length === 0) { alert('No requests to save.'); return; }
+  var ts = Date.now();
+  var key = 'fb_api_session_' + ts;
+  try {
+    localStorage.setItem(key, JSON.stringify({ ts: ts, count: apiRequests.length, requests: apiRequests }));
+    appendConsoleLog('info', 'Saved ' + apiRequests.length + ' API request(s) to local storage.');
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+  }
+}
+
+function toggleSessionsPanel() {
+  _sessionsPanelVisible = !_sessionsPanelVisible;
+  var panel = document.getElementById('api-sessions-panel');
+  panel.classList.toggle('hidden', !_sessionsPanelVisible);
+  if (_sessionsPanelVisible) renderSessionsList();
+}
+
+function renderSessionsList() {
+  var list = document.getElementById('api-sessions-list');
+  var sessions = [];
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i);
+    if (k && k.startsWith('fb_api_session_')) {
+      try { sessions.push({ key: k, data: JSON.parse(localStorage.getItem(k)) }); } catch(e) {}
+    }
+  }
+  sessions.sort(function(a, b) { return b.data.ts - a.data.ts; });
+  if (sessions.length === 0) {
+    list.innerHTML = '<div style="color:#555;padding:6px;font-size:10px">No saved sessions. Use 💾 Save to store the current request list.</div>';
+    list._sessions = [];
+    return;
+  }
+  list.innerHTML = '';
+  list._sessions = sessions;
+  sessions.forEach(function(s, i) {
+    var dt = new Date(s.data.ts).toLocaleString();
+    var div = document.createElement('div');
+    div.className = 'session-item';
+    div.innerHTML = '<span style="color:#d4d4d4">' + escHtml(dt) + ' <span style="color:#9d9d9d">(' + (s.data.count || 0) + ' requests)</span></span>' +
+      '<span>' +
+        '<button class="session-load-btn" onclick="loadApiSession(' + i + ')">▶ Load</button>' +
+        '<button class="session-del-btn" onclick="deleteApiSession(' + i + ')">✕</button>' +
+      '</span>';
+    list.appendChild(div);
+  });
+}
+
+function loadApiSession(idx) {
+  var list = document.getElementById('api-sessions-list');
+  var s = list._sessions && list._sessions[idx];
+  if (!s || !s.data || !Array.isArray(s.data.requests)) return;
+  var loaded = s.data.requests;
+  var added = 0;
+  loaded.forEach(function(req) {
+    if (!req.url) return;
+    // Give loaded requests a fresh unique id so they don't collide
+    req.id = Date.now() + '_loaded_' + (added++);
+    req.type = req.type || 'fetch';
+    apiRequests.push(req);
+    renderApiRow(req, apiRequests.length - 1);
+  });
+  updateApiCount();
+  toggleSessionsPanel();
+  appendConsoleLog('info', 'Loaded ' + added + ' saved request(s). Select a row then use "Replay & Modify" to replay.');
+}
+
+function deleteApiSession(idx) {
+  var list = document.getElementById('api-sessions-list');
+  var s = list._sessions && list._sessions[idx];
+  if (!s) return;
+  if (confirm('Delete this saved session?')) {
+    localStorage.removeItem(s.key);
+    renderSessionsList();
+  }
+}
+
+
 
 function updateApiCount() {
   document.getElementById('api-count').textContent = apiRequests.length + ' requests';

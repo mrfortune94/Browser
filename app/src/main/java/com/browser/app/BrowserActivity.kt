@@ -30,6 +30,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -68,6 +69,28 @@ class BrowserActivity : AppCompatActivity() {
     private val longPressHandler = Handler(Looper.getMainLooper())
     private var longPressRunnable: Runnable? = null
     private var isPrivateMode = false
+    private var corsProxyEnabled = false
+
+    /**
+     * File-picker launcher for loading extension packages (.crx/.xpi/.zip).
+     * Must be registered as a field so it is set up before onStart().
+     */
+    private val pickExtensionLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { docUri ->
+            lifecycleScope.launch {
+                val ext = extensionManager.loadExtensionFromUri(this@BrowserActivity, docUri)
+                runOnUiThread {
+                    if (ext != null) {
+                        Toast.makeText(this@BrowserActivity, "Extension loaded: ${ext.name} v${ext.version}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@BrowserActivity, "Failed to load extension. Make sure it is a valid .crx/.xpi/.zip file.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
 
     companion object {
         private const val PERMISSION_REQUEST_STORAGE = 100
@@ -477,6 +500,7 @@ class BrowserActivity : AppCompatActivity() {
         menu.add(0, 5, 0, "Settings").setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         menu.add(0, 6, 0, "Downloads").setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         menu.add(0, 7, 0, if (adBlocker.isEnabled()) "Disable Ad Blocking" else "Enable Ad Blocking").setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        menu.add(0, 8, 0, if (corsProxyEnabled) "🔓 Disable CORS Bypass" else "🔓 Enable CORS Bypass").setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         return true
     }
 
@@ -489,6 +513,7 @@ class BrowserActivity : AppCompatActivity() {
             5 -> { showSettingsDialog(); true }
             6 -> { openDownloads(); true }
             7 -> { toggleAdBlocking(); true }
+            8 -> { toggleCorsProxy(); true }
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -514,24 +539,74 @@ class BrowserActivity : AppCompatActivity() {
         invalidateOptionsMenu()
     }
 
+    private fun toggleCorsProxy() {
+        if (!corsProxyEnabled) {
+            // Show a security warning before enabling
+            val proxyInput = EditText(this).apply {
+                hint = "Proxy URL (e.g. https://corsproxy.io/?)"
+                setText("https://corsproxy.io/?")
+                setSingleLine(true)
+            }
+            val wrapper = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(48, 24, 48, 8)
+            }
+            val warning = TextView(this).apply {
+                text = "⚠️ Security Warning: Enabling CORS Bypass routes cross-origin requests through the proxy URL below. The proxy operator can see request content. Only use with a trusted proxy on non-sensitive data."
+                textSize = 12f
+                setPadding(0, 0, 0, 16)
+            }
+            wrapper.addView(warning)
+            wrapper.addView(proxyInput)
+            AlertDialog.Builder(this)
+                .setTitle("Enable CORS / WAF Bypass")
+                .setView(wrapper)
+                .setPositiveButton("Enable") { _, _ ->
+                    val proxyUrl = proxyInput.text.toString().trim().let {
+                        if (it.isBlank()) "https://corsproxy.io/?" else it
+                    }
+                    corsProxyEnabled = true
+                    getCurrentWebView()?.let { wv ->
+                        devToolsManager.toggleCorsProxy(wv, true, proxyUrl)
+                    }
+                    Toast.makeText(this, "🔓 CORS Bypass ON via $proxyUrl", Toast.LENGTH_LONG).show()
+                    invalidateOptionsMenu()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            corsProxyEnabled = false
+            getCurrentWebView()?.let { wv -> devToolsManager.toggleCorsProxy(wv, false) }
+            Toast.makeText(this, "🔒 CORS Bypass OFF", Toast.LENGTH_SHORT).show()
+            invalidateOptionsMenu()
+        }
+    }
+
     private fun showExtensionsDialog() {
         val extensions = extensionManager.getExtensions()
-        if (extensions.isEmpty()) {
-            AlertDialog.Builder(this)
-                .setTitle("Extensions")
-                .setMessage("No extensions loaded.\n\nPlace .crx, .xpi, or .zip files in:\n${getExternalFilesDir(null)}/Extensions/")
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
-        val names = extensions.map { "${it.name} v${it.version} \u2014 ${if (it.isEnabled) "\u2713 enabled" else "\u2717 disabled"}" }.toTypedArray()
+        // Build list: loaded extensions + a "Load from file…" entry at the bottom
+        val items = (extensions.map { ext ->
+            "${ext.name} v${ext.version} \u2014 ${if (ext.isEnabled) "\u2713 enabled" else "\u2717 disabled"}"
+        } + listOf("📂 Load extension from file (.crx / .xpi / .zip)…")).toTypedArray()
+
+        val title = if (extensions.isEmpty())
+            "Extensions (none loaded)\nFiles also auto-load from:\n${getExternalFilesDir(null)}/Extensions/"
+        else
+            "Extensions (${extensions.size} loaded) — tap to toggle"
+
         AlertDialog.Builder(this)
-            .setTitle("Extensions (tap to toggle)")
-            .setItems(names) { _, i ->
-                val ext = extensions[i]
-                extensionManager.toggleExtension(ext.id, !ext.isEnabled)
-                Toast.makeText(this, "${ext.name} ${if (!ext.isEnabled) "enabled" else "disabled"}", Toast.LENGTH_SHORT).show()
-                showExtensionsDialog()
+            .setTitle(title)
+            .setItems(items) { _, i ->
+                if (i < extensions.size) {
+                    // Toggle the tapped extension
+                    val ext = extensions[i]
+                    extensionManager.toggleExtension(ext.id, !ext.isEnabled)
+                    Toast.makeText(this, "${ext.name} ${if (!ext.isEnabled) "enabled" else "disabled"}", Toast.LENGTH_SHORT).show()
+                    showExtensionsDialog()
+                } else {
+                    // Open system file picker for .crx / .xpi / .zip
+                    pickExtensionLauncher.launch(arrayOf("*/*"))
+                }
             }
             .setNegativeButton("Close", null)
             .show()

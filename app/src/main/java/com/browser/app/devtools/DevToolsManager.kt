@@ -92,4 +92,15 @@ class DevToolsManager(
             }
         }
     }
+
+    /**
+     * Enables or disables the CORS proxy on the active page's WebView.
+     * When enabled all cross-origin fetch/XHR calls are routed through
+     * [proxyUrl] so WAF / CORS restrictions are bypassed.
+     * Note: the proxy operator can see request content — only use with a trusted proxy.
+     */
+    fun toggleCorsProxy(pageWebView: android.webkit.WebView, enabled: Boolean, proxyUrl: String = "https://corsproxy.io/?") {
+        bridge?.injectCorsProxyScript(pageWebView, enabled, proxyUrl)
+            ?: DevToolsBridge(pageWebView, pageWebView, scope).injectCorsProxyScript(pageWebView, enabled, proxyUrl)
+    }
 }
