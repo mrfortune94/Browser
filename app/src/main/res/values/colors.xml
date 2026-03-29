@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#1565C0</color>
+    <color name="colorPrimaryDark">#003c8f</color>
+    <color name="colorPrimaryVariant">#003c8f</color>
+    <color name="colorSecondary">#FF6F00</color>
+    <color name="colorSecondaryVariant">#c43e00</color>
+    <color name="colorAccent">#FF6F00</color>
+    <color name="colorBackground">#FAFAFA</color>
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorError">#B00020</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+    <color name="colorOnSecondary">#000000</color>
+    <color name="colorOnBackground">#000000</color>
+    <color name="colorOnSurface">#000000</color>
+    <color name="colorOnError">#FFFFFF</color>
+    <color name="tabBackground">#003c8f</color>
+    <color name="tabActiveBackground">#1565C0</color>
+    <color name="tabTextColor">#FFFFFF</color>
+    <color name="urlBarBackground">#FFFFFF</color>
+    <color name="progressBarColor">#FF6F00</color>
+    <color name="private_mode_color">#4A148C</color>
+    <color name="blocked_indicator">#F44336</color>
+    <color name="devtools_background">#1e1e1e</color>
+    <color name="devtools_text">#d4d4d4</color>
+    <color name="devtools_accent">#569cd6</color>
+</resources>

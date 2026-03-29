@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Fortunate Browser DevTools</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', monospace; }
+  body { background: #1e1e1e; color: #d4d4d4; font-size: 12px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  #tab-bar { display: flex; background: #252526; border-bottom: 1px solid #3c3c3c; overflow-x: auto; flex-shrink: 0; }
+  #tab-bar::-webkit-scrollbar { height: 4px; }
+  #tab-bar::-webkit-scrollbar-track { background: #252526; }
+  #tab-bar::-webkit-scrollbar-thumb { background: #555; }
+  .tab-btn { padding: 8px 14px; cursor: pointer; color: #9d9d9d; border: none; background: none; font-size: 11px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab-btn:hover { color: #d4d4d4; background: #2d2d2d; }
+  .tab-btn.active { color: #4ec9b0; border-bottom-color: #4ec9b0; background: #1e1e1e; }
+  #panels { flex: 1; overflow: hidden; position: relative; }
+  .panel { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 8px; }
+  .panel.active { display: flex; flex-direction: column; }
+  .panel::-webkit-scrollbar { width: 6px; }
+  .panel::-webkit-scrollbar-track { background: #1e1e1e; }
+  .panel::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+  /* Console */
+  #console-output { flex: 1; overflow-y: auto; background: #1e1e1e; margin-bottom: 8px; border: 1px solid #3c3c3c; padding: 4px; }
+  #console-output::-webkit-scrollbar { width: 6px; }
+  #console-output::-webkit-scrollbar-thumb { background: #555; }
+  .console-row { padding: 3px 6px; border-bottom: 1px solid #2a2a2a; word-break: break-word; line-height: 1.4; }
+  .console-row.log { color: #d4d4d4; }
+  .console-row.warn { color: #dcdcaa; background: rgba(220,220,0,0.05); }
+  .console-row.error { color: #f44747; background: rgba(244,71,71,0.08); }
+  .console-row.info { color: #9cdcfe; }
+  .console-row.result { color: #4ec9b0; font-style: italic; }
+  .console-row .badge { display: inline-block; font-size: 9px; padding: 1px 4px; border-radius: 2px; margin-right: 6px; font-weight: bold; }
+  .badge.log { background: #333; color: #aaa; }
+  .badge.warn { background: #554400; color: #dcdcaa; }
+  .badge.error { background: #440000; color: #f44747; }
+  .badge.info { background: #003355; color: #9cdcfe; }
+  .badge.result { background: #004433; color: #4ec9b0; }
+  #console-input-row { display: flex; gap: 6px; }
+  #console-input { flex: 1; background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 6px 8px; font-family: 'Courier New', monospace; font-size: 12px; outline: none; }
+  #console-input:focus { border-color: #4ec9b0; }
+  #console-exec { background: #0e639c; color: #fff; border: none; padding: 6px 12px; cursor: pointer; font-size: 11px; }
+  #console-exec:hover { background: #1177bb; }
+  #console-clear-btn { background: #3c3c3c; color: #d4d4d4; border: none; padding: 6px 10px; cursor: pointer; font-size: 11px; }
+  #console-clear-btn:hover { background: #555; }
+
+  /* Network */
+  #net-toolbar { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+  #net-clear { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #net-filter { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 8px; font-size: 11px; flex: 1; outline: none; }
+  #net-table-wrap { flex: 1; overflow-y: auto; }
+  #net-table { width: 100%; border-collapse: collapse; }
+  #net-table th { background: #252526; color: #9d9d9d; padding: 5px 8px; text-align: left; font-size: 10px; border-bottom: 1px solid #3c3c3c; position: sticky; top: 0; }
+  #net-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; font-size: 10px; word-break: break-all; }
+  #net-table tr:hover td { background: #2d2d2d; }
+  .status-ok { color: #4ec9b0; }
+  .status-err { color: #f44747; }
+  .status-blocked { color: #f44747; text-decoration: line-through; }
+  .status-redirect { color: #dcdcaa; }
+  #net-count { font-size: 10px; color: #9d9d9d; margin-left: 8px; }
+
+  /* Elements */
+  #elements-toolbar { display: flex; gap: 6px; margin-bottom: 8px; }
+  #elem-selector { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 8px; font-size: 11px; flex: 1; outline: none; }
+  #elem-inspect-btn { background: #0e639c; color: #fff; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #elem-reload { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #dom-tree { flex: 1; overflow-y: auto; background: #252526; padding: 8px; border: 1px solid #3c3c3c; font-size: 11px; }
+  .dom-node { padding: 2px 0 2px 14px; cursor: pointer; }
+  .dom-node:hover { background: #2d2d2d; }
+  .dom-tag { color: #569cd6; }
+  .dom-attr-name { color: #9cdcfe; }
+  .dom-attr-val { color: #ce9178; }
+  .dom-text { color: #ce9178; font-style: italic; }
+  #elem-detail { background: #252526; padding: 8px; border: 1px solid #3c3c3c; margin-top: 8px; max-height: 200px; overflow-y: auto; font-size: 10px; }
+
+  /* Sources */
+  #src-reload { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; margin-bottom: 8px; }
+  #sources-content { flex: 1; overflow-y: auto; }
+  .src-section { margin-bottom: 12px; }
+  .src-section h3 { color: #4ec9b0; font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid #3c3c3c; padding-bottom: 4px; }
+  .src-item { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; word-break: break-all; font-size: 10px; }
+  .src-item a { color: #9cdcfe; text-decoration: none; }
+  .src-item a:hover { text-decoration: underline; }
+
+  /* Storage */
+  #storage-toolbar { display: flex; gap: 6px; margin-bottom: 8px; }
+  #storage-reload { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #storage-clear { background: #6b1f1f; color: #f44747; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #storage-content { flex: 1; overflow-y: auto; }
+  .storage-section { margin-bottom: 12px; }
+  .storage-section h3 { color: #dcdcaa; font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid #3c3c3c; padding-bottom: 4px; }
+  .storage-table { width: 100%; border-collapse: collapse; }
+  .storage-table th { background: #252526; color: #9d9d9d; padding: 4px 8px; text-align: left; font-size: 10px; border-bottom: 1px solid #3c3c3c; }
+  .storage-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; font-size: 10px; word-break: break-all; vertical-align: top; }
+  .storage-table tr:hover td { background: #2d2d2d; }
+  .edit-btn { background: #3c3c3c; color: #d4d4d4; border: none; padding: 2px 6px; cursor: pointer; font-size: 9px; margin-right: 4px; }
+  .del-btn { background: #440000; color: #f44747; border: none; padding: 2px 6px; cursor: pointer; font-size: 9px; }
+  #storage-add-row { display: flex; gap: 6px; margin-top: 8px; }
+  #storage-add-key, #storage-add-val { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 8px; font-size: 11px; flex: 1; outline: none; }
+  #storage-add-btn { background: #0e639c; color: #fff; border: none; padding: 4px 10px; cursor: pointer; font-size: 11px; }
+
+  /* Performance */
+  #perf-reload { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; margin-bottom: 8px; }
+  #perf-content { flex: 1; overflow-y: auto; }
+  .perf-metric { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #2a2a2a; }
+  .perf-metric .label { color: #9d9d9d; font-size: 11px; }
+  .perf-metric .value { color: #4ec9b0; font-size: 11px; font-weight: bold; }
+  .perf-section-title { color: #dcdcaa; font-size: 11px; padding: 8px 10px 4px; border-bottom: 1px solid #3c3c3c; }
+  .res-row { display: flex; gap: 8px; padding: 3px 8px; border-bottom: 1px solid #2a2a2a; font-size: 10px; }
+  .res-name { flex: 2; color: #d4d4d4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .res-type { flex: 1; color: #9cdcfe; }
+  .res-size { flex: 1; color: #dcdcaa; text-align: right; }
+  .res-time { flex: 1; color: #4ec9b0; text-align: right; }
+
+  /* API Intercept */
+  #api-toolbar { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; flex-shrink: 0; }
+  #api-clear { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #api-filter { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 8px; font-size: 11px; flex: 1; outline: none; }
+  #api-filter:focus { border-color: #4ec9b0; }
+  #api-count { font-size: 10px; color: #9d9d9d; white-space: nowrap; }
+  #api-split { flex: 1; display: flex; flex-direction: column; overflow: hidden; gap: 0; }
+  #api-list-wrap { flex: 0 0 45%; overflow-y: auto; border: 1px solid #3c3c3c; }
+  #api-table { width: 100%; border-collapse: collapse; }
+  #api-table th { background: #252526; color: #9d9d9d; padding: 5px 8px; text-align: left; font-size: 10px; border-bottom: 1px solid #3c3c3c; position: sticky; top: 0; }
+  #api-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; font-size: 10px; word-break: break-all; cursor: pointer; }
+  #api-table tr:hover td { background: #2d2d2d; }
+  #api-table tr.selected td { background: #094771; }
+  .method-get { color: #4ec9b0; }
+  .method-post { color: #dcdcaa; }
+  .method-put { color: #ce9178; }
+  .method-delete { color: #f44747; }
+  .method-patch { color: #c586c0; }
+  #api-detail-pane { flex: 1; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #3c3c3c; border-top: none; background: #1e1e1e; }
+  #api-detail-pane.hidden { display: none; }
+  #api-detail-title { background: #252526; padding: 5px 10px; font-size: 11px; color: #9cdcfe; border-bottom: 1px solid #3c3c3c; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #api-sub-tabs { display: flex; background: #2d2d2d; border-bottom: 1px solid #3c3c3c; flex-shrink: 0; }
+  .api-sub-btn { padding: 5px 12px; background: none; border: none; color: #9d9d9d; font-size: 10px; cursor: pointer; border-bottom: 2px solid transparent; }
+  .api-sub-btn:hover { color: #d4d4d4; }
+  .api-sub-btn.active { color: #4ec9b0; border-bottom-color: #4ec9b0; }
+  #api-sub-content { flex: 1; overflow-y: auto; padding: 8px; }
+  .api-field-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+  .api-field-label { color: #9d9d9d; font-size: 10px; min-width: 70px; padding-top: 4px; }
+  .api-field-value { color: #d4d4d4; font-size: 10px; flex: 1; word-break: break-all; }
+  .api-field-input { flex: 1; background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 6px; font-size: 10px; font-family: 'Courier New', monospace; outline: none; resize: vertical; min-height: 28px; }
+  .api-field-input:focus { border-color: #4ec9b0; }
+  .api-textarea { min-height: 60px; }
+  #api-header-editor { width: 100%; margin-bottom: 6px; }
+  #api-header-editor th { background: #252526; color: #9d9d9d; padding: 3px 6px; font-size: 10px; }
+  #api-header-editor td { padding: 2px 4px; }
+  #api-header-editor input { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 2px 4px; font-size: 10px; width: 100%; outline: none; font-family: 'Courier New', monospace; }
+  #api-add-header-btn { background: #3c3c3c; color: #d4d4d4; border: none; padding: 3px 8px; cursor: pointer; font-size: 10px; margin-bottom: 6px; }
+  #api-replay-btn { background: #0e639c; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font-size: 11px; margin-right: 6px; }
+  #api-replay-btn:hover { background: #1177bb; }
+  #api-replay-btn:disabled { background: #3c3c3c; color: #666; cursor: default; }
+  #api-replay-result { background: #252526; border: 1px solid #3c3c3c; padding: 8px; margin-top: 8px; font-size: 10px; overflow-y: auto; max-height: 200px; }
+  #api-replay-result .res-ok { color: #4ec9b0; }
+  #api-replay-result .res-err { color: #f44747; }
+  .api-resp-body { background: #252526; border: 1px solid #3c3c3c; padding: 6px; font-size: 10px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; }
+  .api-badge { display: inline-block; padding: 1px 5px; border-radius: 2px; font-size: 9px; font-weight: bold; margin-right: 4px; }
+  .api-badge.xhr { background: #3c3c3c; color: #9cdcfe; }
+  .api-badge.fetch { background: #1a3c5e; color: #4ec9b0; }
+  .api-badge.replay { background: #2d4a1e; color: #85d96e; }
+  .api-badge.webhook { background: #4a1e6b; color: #c586c0; }
+  .api-hidden-badge { display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 9px; font-weight: bold; background: #3c2a00; color: #f0a500; border: 1px solid #f0a500; margin-left: 3px; vertical-align: middle; }
+
+  /* Save / Load sessions */
+  #api-save-btn { background: #2d5a1e; color: #85d96e; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #api-save-btn:hover { background: #3a7228; }
+  #api-load-btn { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #api-load-btn:hover { background: #555; }
+  #api-sessions-panel { background: #1a1a1a; border: 1px solid #3c3c3c; border-top: none; padding: 8px; flex-shrink: 0; }
+  #api-sessions-panel.hidden { display: none; }
+  #api-sessions-list { max-height: 120px; overflow-y: auto; margin-top: 4px; }
+  .session-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #2a2a2a; font-size: 10px; }
+  .session-item:hover { background: #2d2d2d; }
+  .session-load-btn { background: #0e639c; color: #fff; border: none; padding: 2px 8px; cursor: pointer; font-size: 10px; }
+  .session-del-btn { background: #440000; color: #f44747; border: none; padding: 2px 6px; cursor: pointer; font-size: 10px; margin-left: 4px; }
+</style>
+</head>
+<body>
+
+<div id="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('console')">Console</button>
+  <button class="tab-btn" onclick="switchTab('network')">Network</button>
+  <button class="tab-btn" onclick="switchTab('elements')">Elements</button>
+  <button class="tab-btn" onclick="switchTab('sources')">Sources</button>
+  <button class="tab-btn" onclick="switchTab('storage')">Storage</button>
+  <button class="tab-btn" onclick="switchTab('performance')">Performance</button>
+  <button class="tab-btn" onclick="switchTab('api')">API ⚡</button>
+</div>
+
+<div id="panels">
+  <!-- Console Panel -->
+  <div id="panel-console" class="panel active">
+    <div id="console-output"></div>
+    <div id="console-input-row">
+      <button id="console-clear-btn" onclick="clearConsole()">Clear</button>
+      <input id="console-input" type="text" placeholder="Enter JavaScript to execute..." onkeydown="if(event.key==='Enter') execConsole()">
+      <button id="console-exec" onclick="execConsole()">Run</button>
+    </div>
+  </div>
+
+  <!-- Network Panel -->
+  <div id="panel-network" class="panel">
+    <div id="net-toolbar">
+      <button id="net-clear" onclick="clearNetwork()">Clear</button>
+      <input id="net-filter" type="text" placeholder="Filter by URL..." oninput="filterNetwork()">
+      <span id="net-count">0 requests</span>
+    </div>
+    <div id="net-table-wrap">
+      <table id="net-table">
+        <thead><tr><th>URL</th><th>Method</th><th>Status</th><th>Type</th><th>Size</th><th>Time</th></tr></thead>
+        <tbody id="net-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Elements Panel -->
+  <div id="panel-elements" class="panel">
+    <div id="elements-toolbar">
+      <input id="elem-selector" type="text" placeholder="CSS selector (e.g. body, #id, .class)">
+      <button id="elem-inspect-btn" onclick="inspectElement()">Inspect</button>
+      <button id="elem-reload" onclick="loadDOM()">Refresh DOM</button>
+    </div>
+    <div id="dom-tree">Loading DOM...</div>
+    <div id="elem-detail" style="display:none"></div>
+  </div>
+
+  <!-- Sources Panel -->
+  <div id="panel-sources" class="panel">
+    <button id="src-reload" onclick="loadSources()">Refresh Sources</button>
+    <div id="sources-content">Loading sources...</div>
+  </div>
+
+  <!-- Storage Panel -->
+  <div id="panel-storage" class="panel">
+    <div id="storage-toolbar">
+      <button id="storage-reload" onclick="loadStorage()">Refresh</button>
+      <button id="storage-clear" onclick="clearStorage()">Clear All</button>
+    </div>
+    <div id="storage-content">Loading storage...</div>
+    <div id="storage-add-row">
+      <input id="storage-add-key" type="text" placeholder="Key">
+      <input id="storage-add-val" type="text" placeholder="Value">
+      <button id="storage-add-btn" onclick="addStorageItem()">Add</button>
+    </div>
+  </div>
+
+  <!-- Performance Panel -->
+  <div id="panel-performance" class="panel">
+    <button id="perf-reload" onclick="loadPerformance()">Refresh Metrics</button>
+    <div id="perf-content">Loading performance data...</div>
+  </div>
+
+  <!-- API Intercept / Modify / Replay Panel -->
+  <div id="panel-api" class="panel">
+    <div id="api-toolbar">
+      <button id="api-clear" onclick="clearApi()">Clear</button>
+      <button id="api-save-btn" onclick="saveApiSession()">💾 Save</button>
+      <button id="api-load-btn" onclick="toggleSessionsPanel()">📂 Load</button>
+      <input id="api-filter" type="text" placeholder="Filter by URL..." oninput="filterApi()">
+      <span id="api-count">0 requests</span>
+    </div>
+    <div id="api-sessions-panel" class="hidden">
+      <div style="color:#dcdcaa;font-size:11px;margin-bottom:4px;">Saved Sessions (stored locally):</div>
+      <div id="api-sessions-list"><span style="color:#555;font-size:10px">Loading…</span></div>
+    </div>
+    <div id="api-split">
+      <div id="api-list-wrap">
+        <table id="api-table">
+          <thead><tr><th>Type</th><th>Method</th><th>URL</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody id="api-body"></tbody>
+        </table>
+      </div>
+      <div id="api-detail-pane" class="hidden">
+        <div id="api-detail-title">No request selected</div>
+        <div id="api-sub-tabs">
+          <button class="api-sub-btn active" onclick="showApiSubTab('request')">Request</button>
+          <button class="api-sub-btn" onclick="showApiSubTab('response')">Response</button>
+          <button class="api-sub-btn" onclick="showApiSubTab('replay')">Replay &amp; Modify</button>
+        </div>
+        <div id="api-sub-content">
+          <!-- Request sub-tab -->
+          <div id="api-sub-request">
+            <div class="api-field-row"><span class="api-field-label">URL</span><span class="api-field-value" id="req-url-display"></span></div>
+            <div class="api-field-row"><span class="api-field-label">Method</span><span class="api-field-value" id="req-method-display"></span></div>
+            <div class="api-field-row"><span class="api-field-label">Headers</span></div>
+            <div id="req-headers-display" style="font-size:10px;padding-left:76px;margin-bottom:6px;"></div>
+            <div class="api-field-row"><span class="api-field-label">Body</span><div class="api-resp-body" id="req-body-display">—</div></div>
+          </div>
+          <!-- Response sub-tab -->
+          <div id="api-sub-response" style="display:none">
+            <div class="api-field-row"><span class="api-field-label">Status</span><span class="api-field-value" id="resp-status-display">Pending…</span></div>
+            <div class="api-field-row"><span class="api-field-label">Headers</span></div>
+            <div id="resp-headers-display" style="font-size:10px;padding-left:76px;margin-bottom:6px;"></div>
+            <div class="api-field-row"><span class="api-field-label">Body</span><div class="api-resp-body" id="resp-body-display">Pending…</div></div>
+          </div>
+          <!-- Replay sub-tab -->
+          <div id="api-sub-replay" style="display:none">
+            <div style="color:#dcdcaa;font-size:10px;margin-bottom:8px;">Edit request then click Replay to re-send with modifications.</div>
+            <div class="api-field-row">
+              <span class="api-field-label">Method</span>
+              <select id="replay-method" class="api-field-input" style="min-height:0;height:24px;">
+                <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+              </select>
+            </div>
+            <div class="api-field-row">
+              <span class="api-field-label">URL</span>
+              <input id="replay-url" type="text" class="api-field-input" placeholder="https://...">
+            </div>
+            <div style="color:#9d9d9d;font-size:10px;margin-bottom:4px;">Headers:</div>
+            <table id="api-header-editor"><thead><tr><th>Name</th><th>Value</th><th></th></tr></thead><tbody id="replay-headers-body"></tbody></table>
+            <button id="api-add-header-btn" onclick="addReplayHeader()">+ Add Header</button>
+            <div class="api-field-row">
+              <span class="api-field-label">Body</span>
+              <textarea id="replay-body" class="api-field-input api-textarea" placeholder="Request body (JSON, form data, etc.)"></textarea>
+            </div>
+            <div style="margin-top:8px;">
+              <button id="api-replay-btn" onclick="replayRequest()">▶ Replay</button>
+              <span style="font-size:10px;color:#9d9d9d;" id="replay-status"></span>
+            </div>
+            <div id="api-replay-result" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var currentTab = 'console';
+var networkRequests = [];
+var consoleHistory = [];
+var historyIndex = -1;
+
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(function(b, i) {
+    var tabs = ['console','network','elements','sources','storage','performance','api'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(function(p) {
+    p.classList.remove('active');
+  });
+  var panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+
+  if (name === 'elements') loadDOM();
+  else if (name === 'sources') loadSources();
+  else if (name === 'storage') loadStorage();
+  else if (name === 'performance') loadPerformance();
+}
+
+// ---- Console ----
+function appendConsoleLog(level, message) {
+  var out = document.getElementById('console-output');
+  var row = document.createElement('div');
+  row.className = 'console-row ' + level;
+  var ts = new Date().toLocaleTimeString('en-US', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  row.innerHTML = '<span class="badge ' + level + '">' + level.toUpperCase() + '</span>' +
+    '<span style="color:#555;font-size:9px;margin-right:6px">' + ts + '</span>' +
+    escHtml(message);
+  out.appendChild(row);
+  out.scrollTop = out.scrollHeight;
+}
+
+function receiveConsoleResult(result) {
+  var out = document.getElementById('console-output');
+  var row = document.createElement('div');
+  row.className = 'console-row result';
+  row.innerHTML = '<span class="badge result">RESULT</span>' + escHtml(result);
+  out.appendChild(row);
+  out.scrollTop = out.scrollHeight;
+}
+
+function execConsole() {
+  var input = document.getElementById('console-input');
+  var code = input.value.trim();
+  if (!code) return;
+  consoleHistory.unshift(code);
+  historyIndex = -1;
+
+  var out = document.getElementById('console-output');
+  var row = document.createElement('div');
+  row.className = 'console-row log';
+  row.innerHTML = '<span style="color:#569cd6;margin-right:6px">></span>' + escHtml(code);
+  out.appendChild(row);
+  out.scrollTop = out.scrollHeight;
+  input.value = '';
+
+  if (window.DevToolsBridge) {
+    DevToolsBridge.executeInPage(code);
+  } else {
+    receiveConsoleResult('DevToolsBridge not available');
+  }
+}
+
+document.getElementById('console-input').addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIndex < consoleHistory.length - 1) {
+      historyIndex++;
+      this.value = consoleHistory[historyIndex];
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIndex > 0) { historyIndex--; this.value = consoleHistory[historyIndex]; }
+    else { historyIndex = -1; this.value = ''; }
+  }
+});
+
+function clearConsole() {
+  document.getElementById('console-output').innerHTML = '';
+}
+
+// ---- Network ----
+function addNetworkRequest(data) {
+  networkRequests.push(data);
+  renderNetworkRow(data);
+  updateNetCount();
+}
+
+function renderNetworkRow(data) {
+  var tbody = document.getElementById('net-body');
+  var filter = document.getElementById('net-filter').value.toLowerCase();
+  if (filter && !data.url.toLowerCase().includes(filter)) return;
+
+  var tr = document.createElement('tr');
+  var shortUrl = data.url.length > 60 ? '...' + data.url.slice(-57) : data.url;
+  var statusClass = data.status === 0 ? 'status-blocked' :
+    (data.status >= 200 && data.status < 300) ? 'status-ok' :
+    (data.status >= 300 && data.status < 400) ? 'status-redirect' : 'status-err';
+  var statusText = data.status === 0 ? 'blocked' : data.status;
+  var sizeText = data.size > 0 ? formatBytes(data.size) : '-';
+  var timeText = data.time > 0 ? data.time + 'ms' : '-';
+
+  tr.innerHTML = '<td title="' + escHtml(data.url) + '">' + escHtml(shortUrl) + '</td>' +
+    '<td>' + escHtml(data.method || 'GET') + '</td>' +
+    '<td class="' + statusClass + '">' + statusText + '</td>' +
+    '<td>' + escHtml(data.type || '-') + '</td>' +
+    '<td>' + sizeText + '</td>' +
+    '<td>' + timeText + '</td>';
+  tbody.appendChild(tr);
+  var wrap = document.getElementById('net-table-wrap');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function filterNetwork() {
+  var filter = document.getElementById('net-filter').value.toLowerCase();
+  var tbody = document.getElementById('net-body');
+  tbody.innerHTML = '';
+  networkRequests.forEach(function(r) {
+    if (!filter || r.url.toLowerCase().includes(filter)) renderNetworkRow(r);
+  });
+}
+
+function clearNetwork() {
+  networkRequests = [];
+  document.getElementById('net-body').innerHTML = '';
+  updateNetCount();
+}
+
+function updateNetCount() {
+  document.getElementById('net-count').textContent = networkRequests.length + ' requests';
+}
+
+// ---- Elements ----
+function loadDOM() {
+  document.getElementById('dom-tree').textContent = 'Loading...';
+  if (window.DevToolsBridge) DevToolsBridge.getDOM();
+  else document.getElementById('dom-tree').textContent = 'DevToolsBridge not available';
+}
+
+function receiveDOM(data) {
+  var tree = document.getElementById('dom-tree');
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch(e) {}
+  }
+  tree.innerHTML = '';
+  if (data) renderDomNode(tree, data, 0);
+  else tree.textContent = 'Failed to load DOM';
+}
+
+function renderDomNode(parent, node, depth) {
+  if (!node) return;
+  var div = document.createElement('div');
+  div.className = 'dom-node';
+  div.style.paddingLeft = (depth * 14 + 4) + 'px';
+
+  if (node.tag) {
+    var tag = node.tag.toLowerCase();
+    var attrsHtml = '';
+    if (node.attrs) {
+      Object.keys(node.attrs).slice(0, 5).forEach(function(k) {
+        attrsHtml += ' <span class="dom-attr-name">' + escHtml(k) + '</span>="<span class="dom-attr-val">' + escHtml(node.attrs[k].substring(0,50)) + '</span>"';
+      });
+    }
+    div.innerHTML = '<span class="dom-tag">&lt;' + escHtml(tag) + '</span>' + attrsHtml + '<span class="dom-tag">&gt;</span>';
+    if (node.text) {
+      var textSpan = document.createElement('span');
+      textSpan.className = 'dom-text';
+      textSpan.textContent = ' ' + node.text;
+      div.appendChild(textSpan);
+    }
+  }
+  parent.appendChild(div);
+
+  if (node.children && node.children.length > 0) {
+    node.children.forEach(function(child) {
+      renderDomNode(parent, child, depth + 1);
+    });
+  }
+}
+
+function inspectElement() {
+  var sel = document.getElementById('elem-selector').value.trim();
+  if (!sel) return;
+  if (window.DevToolsBridge) DevToolsBridge.inspectElement(sel);
+}
+
+function receiveElementInfo(data) {
+  var detail = document.getElementById('elem-detail');
+  detail.style.display = 'block';
+  if (data.error) { detail.textContent = data.error; return; }
+
+  var html = '<div style="color:#569cd6;margin-bottom:6px;font-size:11px">' + escHtml(data.tagName || '') + ' ' +
+    (data.id ? '#' + escHtml(data.id) : '') + ' ' + (data.className ? '.' + escHtml(data.className.replace(/ /g,'.').substring(0,40)) : '') + '</div>';
+
+  if (data.rect) {
+    html += '<div style="color:#9d9d9d;font-size:10px;margin-bottom:6px">Box: ' +
+      Math.round(data.rect.width) + 'x' + Math.round(data.rect.height) + ' @ (' + Math.round(data.rect.left) + ',' + Math.round(data.rect.top) + ')</div>';
+  }
+
+  if (data.styles) {
+    html += '<div style="color:#dcdcaa;font-size:10px;margin-bottom:4px">Computed Styles:</div>';
+    var importantStyles = ['display','position','width','height','color','background','font-size','margin','padding','flex'];
+    importantStyles.forEach(function(prop) {
+      if (data.styles[prop]) {
+        html += '<div style="padding:2px 0"><span style="color:#9cdcfe">' + escHtml(prop) + '</span>: <span style="color:#ce9178">' + escHtml(data.styles[prop]) + '</span></div>';
+      }
+    });
+  }
+  detail.innerHTML = html;
+}
+
+// ---- Sources ----
+function loadSources() {
+  document.getElementById('sources-content').textContent = 'Loading...';
+  if (window.DevToolsBridge) DevToolsBridge.getSources();
+  else document.getElementById('sources-content').textContent = 'DevToolsBridge not available';
+}
+
+function receiveSources(data) {
+  var content = document.getElementById('sources-content');
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) {} }
+  var html = '';
+  if (data.scripts && data.scripts.length > 0) {
+    html += '<div class="src-section"><h3>Scripts (' + data.scripts.length + ')</h3>';
+    data.scripts.forEach(function(s) {
+      html += '<div class="src-item"><a href="' + escHtml(s) + '" target="_blank">' + escHtml(s.length > 80 ? s.substring(0,77) + '...' : s) + '</a></div>';
+    });
+    html += '</div>';
+  }
+  if (data.styles && data.styles.length > 0) {
+    html += '<div class="src-section"><h3>Stylesheets (' + data.styles.length + ')</h3>';
+    data.styles.forEach(function(s) {
+      var isInline = s.startsWith('inline-');
+      if (isInline) {
+        html += '<div class="src-item" style="color:#ce9178">' + escHtml(s.substring(0, 100)) + '</div>';
+      } else {
+        html += '<div class="src-item"><a href="' + escHtml(s) + '" target="_blank">' + escHtml(s.length > 80 ? s.substring(0,77) + '...' : s) + '</a></div>';
+      }
+    });
+    html += '</div>';
+  }
+  content.innerHTML = html || '<div style="color:#9d9d9d;padding:16px">No scripts or stylesheets found</div>';
+}
+
+// ---- Storage ----
+function loadStorage() {
+  document.getElementById('storage-content').textContent = 'Loading...';
+  if (window.DevToolsBridge) DevToolsBridge.getStorage();
+  else document.getElementById('storage-content').textContent = 'DevToolsBridge not available';
+}
+
+function receiveStorage(data) {
+  var content = document.getElementById('storage-content');
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) {} }
+
+  // Store storage data globally so onclick handlers can reference by index (avoids string injection)
+  window._storageData = data;
+
+  function renderTable(obj, type) {
+    var keys = Object.keys(obj);
+    if (keys.length === 0) return '<div style="color:#9d9d9d;padding:8px;font-size:10px">Empty</div>';
+    var html = '<table class="storage-table"><thead><tr><th>Key</th><th>Value</th><th>Actions</th></tr></thead><tbody>';
+    keys.forEach(function(k, idx) {
+      var val = String(obj[k]);
+      // Use index-based onclick to avoid any HTML/JS injection via key or value strings
+      html += '<tr><td>' + escHtml(k) + '</td><td>' + escHtml(val.length > 100 ? val.substring(0,100) + '...' : val) + '</td><td>' +
+        '<button class="edit-btn" onclick="editStorageByIndex(\'' + escHtml(type) + '\',' + idx + ')">Edit</button>' +
+        '<button class="del-btn" onclick="deleteStorageByIndex(\'' + escHtml(type) + '\',' + idx + ')">Del</button>' +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  var html = '<div class="storage-section"><h3>localStorage (' + Object.keys(data.localStorage || {}).length + ' items)</h3>' +
+    renderTable(data.localStorage || {}, 'local') + '</div>' +
+    '<div class="storage-section"><h3>sessionStorage (' + Object.keys(data.sessionStorage || {}).length + ' items)</h3>' +
+    renderTable(data.sessionStorage || {}, 'session') + '</div>';
+  content.innerHTML = html;
+}
+
+function editStorageByIndex(type, idx) {
+  if (!window._storageData) return;
+  var obj = type === 'local' ? window._storageData.localStorage : window._storageData.sessionStorage;
+  var key = Object.keys(obj)[idx];
+  if (key === undefined) return;
+  var newVal = prompt('Edit value for "' + key + '":', String(obj[key]));
+  if (newVal !== null && window.DevToolsBridge) {
+    DevToolsBridge.editLocalStorage(key, newVal);
+    setTimeout(loadStorage, 300);
+  }
+}
+
+function deleteStorageByIndex(type, idx) {
+  if (!window._storageData) return;
+  var obj = type === 'local' ? window._storageData.localStorage : window._storageData.sessionStorage;
+  var key = Object.keys(obj)[idx];
+  if (key === undefined) return;
+  if (confirm('Delete "' + escHtml(key) + '"?') && window.DevToolsBridge) {
+    DevToolsBridge.deleteLocalStorage(key);
+    setTimeout(loadStorage, 300);
+  }
+}
+
+function editStorage(key, currentVal) {
+  var newVal = prompt('Edit value for "' + key + '":', currentVal);
+  if (newVal !== null && window.DevToolsBridge) {
+    DevToolsBridge.editLocalStorage(key, newVal);
+    setTimeout(loadStorage, 300);
+  }
+}
+
+function deleteStorage(key) {
+  if (confirm('Delete "' + key + '"?') && window.DevToolsBridge) {
+    DevToolsBridge.deleteLocalStorage(key);
+    setTimeout(loadStorage, 300);
+  }
+}
+
+function addStorageItem() {
+  var key = document.getElementById('storage-add-key').value.trim();
+  var val = document.getElementById('storage-add-val').value;
+  if (!key) { alert('Key is required'); return; }
+  if (window.DevToolsBridge) {
+    DevToolsBridge.editLocalStorage(key, val);
+    document.getElementById('storage-add-key').value = '';
+    document.getElementById('storage-add-val').value = '';
+    setTimeout(loadStorage, 300);
+  }
+}
+
+function clearStorage() {
+  if (confirm('Clear all localStorage?') && window.DevToolsBridge) {
+    DevToolsBridge.executeInPage('localStorage.clear(); "cleared"');
+    setTimeout(loadStorage, 400);
+  }
+}
+
+// ---- Performance ----
+function loadPerformance() {
+  document.getElementById('perf-content').textContent = 'Loading...';
+  if (window.DevToolsBridge) DevToolsBridge.getPerformance();
+  else document.getElementById('perf-content').textContent = 'DevToolsBridge not available';
+}
+
+function receivePerformance(data) {
+  var content = document.getElementById('perf-content');
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) {} }
+
+  var html = '<div class="perf-metric"><span class="label">Time to First Byte (TTFB)</span><span class="value">' + (data.ttfb || 0) + 'ms</span></div>' +
+    '<div class="perf-metric"><span class="label">DOM Content Loaded</span><span class="value">' + (data.domLoad || 0) + 'ms</span></div>' +
+    '<div class="perf-metric"><span class="label">Full Page Load</span><span class="value">' + (data.fullLoad || 0) + 'ms</span></div>';
+
+  if (data.resources && data.resources.length > 0) {
+    html += '<div class="perf-section-title">Resources (' + data.resources.length + ')</div>';
+    html += '<div style="display:flex;gap:8px;padding:3px 8px;font-size:10px;color:#555;border-bottom:1px solid #3c3c3c"><span style="flex:2">Name</span><span style="flex:1">Type</span><span style="flex:1;text-align:right">Size</span><span style="flex:1;text-align:right">Time</span></div>';
+    data.resources.forEach(function(r) {
+      html += '<div class="res-row">' +
+        '<span class="res-name" title="' + escHtml(r.name) + '">' + escHtml(r.name) + '</span>' +
+        '<span class="res-type">' + escHtml(r.type || '-') + '</span>' +
+        '<span class="res-size">' + formatBytes(r.size) + '</span>' +
+        '<span class="res-time">' + r.duration + 'ms</span></div>';
+    });
+  }
+  content.innerHTML = html;
+}
+
+// ---- Utilities ----
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '-';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+appendConsoleLog('info', 'Fortunate Browser DevTools initialized. Bridge: ' + (window.DevToolsBridge ? 'connected' : 'not connected'));
+
+// ---- API Intercept / Modify / Replay ----
+var apiRequests = [];        // { id, type, method, url, headers, body, time, status, respHeaders, respBody, duration }
+var selectedApiIdx = -1;
+var currentApiSubTab = 'request';
+
+function addApiRequest(data) {
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { return; } }
+  // Upsert by id (request may arrive before response)
+  var existing = null;
+  for (var i = 0; i < apiRequests.length; i++) {
+    if (apiRequests[i].id === data.id) { existing = i; break; }
+  }
+  if (existing !== null) {
+    Object.assign(apiRequests[existing], data);
+    refreshApiRow(existing);
+  } else {
+    apiRequests.push(data);
+    renderApiRow(data, apiRequests.length - 1);
+    updateApiCount();
+  }
+  if (selectedApiIdx >= 0 && apiRequests[selectedApiIdx] && apiRequests[selectedApiIdx].id === data.id) {
+    populateApiDetail(selectedApiIdx);
+  }
+}
+
+function addApiResponse(data) {
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { return; } }
+  for (var i = 0; i < apiRequests.length; i++) {
+    if (apiRequests[i].id === data.id) {
+      apiRequests[i].status = data.status;
+      apiRequests[i].statusText = data.statusText;
+      apiRequests[i].respHeaders = data.headers;
+      apiRequests[i].respBody = data.body;
+      apiRequests[i].duration = data.duration;
+      refreshApiRow(i);
+      if (selectedApiIdx === i) populateApiDetail(i);
+      break;
+    }
+  }
+}
+
+function renderApiRow(req, idx) {
+  var filter = document.getElementById('api-filter').value.toLowerCase();
+  if (filter && !req.url.toLowerCase().includes(filter)) return;
+  var tbody = document.getElementById('api-body');
+  var tr = document.createElement('tr');
+  tr.id = 'api-row-' + idx;
+  tr.onclick = (function(i) { return function() { selectApiRequest(i); }; })(idx);
+  tr.innerHTML = buildApiRowHtml(req);
+  tbody.appendChild(tr);
+}
+
+function refreshApiRow(idx) {
+  var tr = document.getElementById('api-row-' + idx);
+  if (tr) tr.innerHTML = buildApiRowHtml(apiRequests[idx]);
+  // Restore click handler
+  tr && (tr.onclick = (function(i) { return function() { selectApiRequest(i); }; })(idx));
+}
+
+function buildApiRowHtml(req) {
+  var shortUrl = req.url.length > 55 ? '...' + req.url.slice(-52) : req.url;
+  var methodClass = 'method-' + (req.method || 'get').toLowerCase();
+  var statusText = req.status != null ? req.status : '…';
+  var statusClass = !req.status ? '' : (req.status >= 200 && req.status < 300) ? 'status-ok' :
+    (req.status >= 300 && req.status < 400) ? 'status-redirect' : 'status-err';
+  var timeText = req.duration != null ? req.duration + 'ms' : '…';
+  var badgeType = req.type || 'fetch';
+  var badge = '<span class="api-badge ' + escHtml(badgeType) + '">' + escHtml(badgeType.toUpperCase()) + '</span>';
+  var hiddenBadge = req.isHidden ? '<span class="api-hidden-badge">HIDDEN</span>' : '';
+  return '<td>' + badge + hiddenBadge + '</td>' +
+    '<td class="' + methodClass + '">' + escHtml(req.method || 'GET') + '</td>' +
+    '<td title="' + escHtml(req.url) + '">' + escHtml(shortUrl) + '</td>' +
+    '<td class="' + statusClass + '">' + statusText + '</td>' +
+    '<td>' + timeText + '</td>';
+}
+
+function selectApiRequest(idx) {
+  selectedApiIdx = idx;
+  // Highlight row
+  document.querySelectorAll('#api-body tr').forEach(function(r) { r.classList.remove('selected'); });
+  var row = document.getElementById('api-row-' + idx);
+  if (row) row.classList.add('selected');
+  // Show detail pane
+  var pane = document.getElementById('api-detail-pane');
+  pane.classList.remove('hidden');
+  populateApiDetail(idx);
+  showApiSubTab(currentApiSubTab);
+}
+
+function populateApiDetail(idx) {
+  var req = apiRequests[idx];
+  if (!req) return;
+  // Title
+  document.getElementById('api-detail-title').textContent = req.method + '  ' + req.url;
+  // Request sub-tab
+  document.getElementById('req-url-display').textContent = req.url;
+  document.getElementById('req-method-display').textContent = req.method || 'GET';
+  var hd = document.getElementById('req-headers-display');
+  hd.innerHTML = renderHeadersHtml(req.headers);
+  var bd = document.getElementById('req-body-display');
+  bd.textContent = req.body || '—';
+  // Response sub-tab
+  var status = req.status != null ? (req.status + (req.statusText ? ' ' + req.statusText : '')) : 'Pending…';
+  document.getElementById('resp-status-display').textContent = status;
+  var rhd = document.getElementById('resp-headers-display');
+  rhd.innerHTML = renderHeadersHtml(req.respHeaders);
+  document.getElementById('resp-body-display').textContent = req.respBody || (req.status != null ? '(empty)' : 'Pending…');
+  // Replay sub-tab pre-fill (only if not already edited)
+  if (document.getElementById('replay-url').value === '' || document.getElementById('replay-url').dataset.lastId !== String(req.id)) {
+    document.getElementById('replay-url').value = req.url;
+    document.getElementById('replay-url').dataset.lastId = String(req.id);
+    var sel = document.getElementById('replay-method');
+    sel.value = req.method || 'GET';
+    // Populate headers table
+    var tbody = document.getElementById('replay-headers-body');
+    tbody.innerHTML = '';
+    if (req.headers) {
+      Object.keys(req.headers).forEach(function(k) {
+        addReplayHeaderRow(k, String(req.headers[k]));
+      });
+    }
+    document.getElementById('replay-body').value = req.body || '';
+    document.getElementById('api-replay-result').style.display = 'none';
+    document.getElementById('replay-status').textContent = '';
+  }
+}
+
+function renderHeadersHtml(headers) {
+  if (!headers || Object.keys(headers).length === 0) return '<span style="color:#555">none</span>';
+  return Object.keys(headers).slice(0, 30).map(function(k) {
+    return '<div><span style="color:#9cdcfe">' + escHtml(k) + '</span>: <span style="color:#ce9178">' + escHtml(String(headers[k]).substring(0, 100)) + '</span></div>';
+  }).join('');
+}
+
+function showApiSubTab(name) {
+  currentApiSubTab = name;
+  document.querySelectorAll('.api-sub-btn').forEach(function(b, i) {
+    var tabs = ['request', 'response', 'replay'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.getElementById('api-sub-request').style.display = name === 'request' ? '' : 'none';
+  document.getElementById('api-sub-response').style.display = name === 'response' ? '' : 'none';
+  document.getElementById('api-sub-replay').style.display = name === 'replay' ? '' : 'none';
+}
+
+function addReplayHeader(name, value) {
+  addReplayHeaderRow(name || '', value || '');
+}
+
+function addReplayHeaderRow(name, value) {
+  var tbody = document.getElementById('replay-headers-body');
+  var tr = document.createElement('tr');
+  var idx = tbody.rows.length;
+  tr.innerHTML = '<td><input type="text" placeholder="Header-Name" value="' + escHtml(name) + '"></td>' +
+    '<td><input type="text" placeholder="value" value="' + escHtml(value) + '"></td>' +
+    '<td><button onclick="removeReplayHeader(this)" style="background:#3c3c3c;color:#f44747;border:none;padding:2px 6px;cursor:pointer;font-size:10px;">✕</button></td>';
+  tbody.appendChild(tr);
+}
+
+function removeReplayHeader(btn) {
+  var tr = btn.closest('tr');
+  if (tr) tr.remove();
+}
+
+function replayRequest() {
+  var url = document.getElementById('replay-url').value.trim();
+  var method = document.getElementById('replay-method').value;
+  var body = document.getElementById('replay-body').value;
+  if (!url) { alert('URL is required'); return; }
+
+  var headers = {};
+  var rows = document.getElementById('replay-headers-body').rows;
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var k = inputs[0] ? inputs[0].value.trim() : '';
+    var v = inputs[1] ? inputs[1].value : '';
+    if (k) headers[k] = v;
+  }
+
+  var btn = document.getElementById('api-replay-btn');
+  btn.disabled = true;
+  document.getElementById('replay-status').textContent = 'Sending…';
+  document.getElementById('api-replay-result').style.display = 'none';
+
+  if (window.DevToolsBridge) {
+    try {
+      DevToolsBridge.replayApiRequest(JSON.stringify({ method: method, url: url, headers: headers, body: (method === 'GET' || method === 'HEAD') ? null : body }));
+    } catch(e) {
+      receiveReplayResult(JSON.stringify({ ok: false, error: String(e) }));
+    }
+  } else {
+    receiveReplayResult(JSON.stringify({ ok: false, error: 'DevToolsBridge not available' }));
+  }
+}
+
+function receiveReplayResult(data) {
+  document.getElementById('api-replay-btn').disabled = false;
+  document.getElementById('replay-status').textContent = '';
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { data = { ok: false, error: String(data) }; } }
+  var box = document.getElementById('api-replay-result');
+  box.style.display = 'block';
+  if (data.ok) {
+    var headersHtml = renderHeadersHtml(data.headers);
+    var bodyText = escHtml((data.body || '(empty)').substring(0, 5000));
+    box.innerHTML = '<div class="res-ok">✓ ' + escHtml(String(data.status)) + '</div>' +
+      '<div style="color:#9d9d9d;margin-top:6px;margin-bottom:2px;font-size:10px">Response Headers:</div>' +
+      '<div style="padding-left:8px;font-size:10px">' + headersHtml + '</div>' +
+      '<div style="color:#9d9d9d;margin-top:6px;margin-bottom:2px;font-size:10px">Response Body:</div>' +
+      '<div class="api-resp-body">' + bodyText + '</div>';
+    // Also add to the API request list as a replay entry
+    var replayEntry = {
+      id: Date.now(), type: 'replay', method: document.getElementById('replay-method').value,
+      url: document.getElementById('replay-url').value, headers: {}, body: null,
+      status: data.status, respHeaders: data.headers, respBody: data.body, duration: null
+    };
+    apiRequests.push(replayEntry);
+    renderApiRow(replayEntry, apiRequests.length - 1);
+    updateApiCount();
+  } else {
+    box.innerHTML = '<div class="res-err">✗ Error: ' + escHtml(String(data.error || 'Unknown error')) + '</div>';
+  }
+}
+
+function filterApi() {
+  var filter = document.getElementById('api-filter').value.toLowerCase();
+  var tbody = document.getElementById('api-body');
+  tbody.innerHTML = '';
+  apiRequests.forEach(function(r, i) {
+    if (!filter || r.url.toLowerCase().includes(filter)) renderApiRow(r, i);
+  });
+}
+
+function clearApi() {
+  apiRequests = [];
+  selectedApiIdx = -1;
+  document.getElementById('api-body').innerHTML = '';
+  document.getElementById('api-detail-pane').classList.add('hidden');
+  // Also close sessions panel if open
+  document.getElementById('api-sessions-panel').classList.add('hidden');
+  _sessionsPanelVisible = false;
+  updateApiCount();
+}
+
+// ---- Save / Load API Sessions ----
+var _sessionsPanelVisible = false;
+
+function saveApiSession() {
+  if (apiRequests.length === 0) { alert('No requests to save.'); return; }
+  var ts = Date.now();
+  var key = 'fb_api_session_' + ts;
+  try {
+    localStorage.setItem(key, JSON.stringify({ ts: ts, count: apiRequests.length, requests: apiRequests }));
+    appendConsoleLog('info', 'Saved ' + apiRequests.length + ' API request(s) to local storage.');
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+  }
+}
+
+function toggleSessionsPanel() {
+  _sessionsPanelVisible = !_sessionsPanelVisible;
+  var panel = document.getElementById('api-sessions-panel');
+  panel.classList.toggle('hidden', !_sessionsPanelVisible);
+  if (_sessionsPanelVisible) renderSessionsList();
+}
+
+function renderSessionsList() {
+  var list = document.getElementById('api-sessions-list');
+  var sessions = [];
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i);
+    if (k && k.startsWith('fb_api_session_')) {
+      try { sessions.push({ key: k, data: JSON.parse(localStorage.getItem(k)) }); } catch(e) {}
+    }
+  }
+  sessions.sort(function(a, b) { return b.data.ts - a.data.ts; });
+  if (sessions.length === 0) {
+    list.innerHTML = '<div style="color:#555;padding:6px;font-size:10px">No saved sessions. Use 💾 Save to store the current request list.</div>';
+    list._sessions = [];
+    return;
+  }
+  list.innerHTML = '';
+  list._sessions = sessions;
+  sessions.forEach(function(s, i) {
+    var dt = new Date(s.data.ts).toLocaleString();
+    var div = document.createElement('div');
+    div.className = 'session-item';
+    div.innerHTML = '<span style="color:#d4d4d4">' + escHtml(dt) + ' <span style="color:#9d9d9d">(' + (s.data.count || 0) + ' requests)</span></span>' +
+      '<span>' +
+        '<button class="session-load-btn" onclick="loadApiSession(' + i + ')">▶ Load</button>' +
+        '<button class="session-del-btn" onclick="deleteApiSession(' + i + ')">✕</button>' +
+      '</span>';
+    list.appendChild(div);
+  });
+}
+
+function loadApiSession(idx) {
+  var list = document.getElementById('api-sessions-list');
+  var s = list._sessions && list._sessions[idx];
+  if (!s || !s.data || !Array.isArray(s.data.requests)) return;
+  var loaded = s.data.requests;
+  var added = 0;
+  loaded.forEach(function(req) {
+    if (!req.url) return;
+    // Give loaded requests a fresh unique id so they don't collide
+    req.id = Date.now() + '_loaded_' + (added++);
+    req.type = req.type || 'fetch';
+    apiRequests.push(req);
+    renderApiRow(req, apiRequests.length - 1);
+  });
+  updateApiCount();
+  toggleSessionsPanel();
+  appendConsoleLog('info', 'Loaded ' + added + ' saved request(s). Select a row then use "Replay & Modify" to replay.');
+}
+
+function deleteApiSession(idx) {
+  var list = document.getElementById('api-sessions-list');
+  var s = list._sessions && list._sessions[idx];
+  if (!s) return;
+  if (confirm('Delete this saved session?')) {
+    localStorage.removeItem(s.key);
+    renderSessionsList();
+  }
+}
+
+
+
+function updateApiCount() {
+  document.getElementById('api-count').textContent = apiRequests.length + ' requests';
+}
+
+</script>
+</body>
+</html>
