@@ -449,17 +449,19 @@ function receiveStorage(data) {
   var content = document.getElementById('storage-content');
   if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) {} }
 
+  // Store storage data globally so onclick handlers can reference by index (avoids string injection)
+  window._storageData = data;
+
   function renderTable(obj, type) {
     var keys = Object.keys(obj);
     if (keys.length === 0) return '<div style="color:#9d9d9d;padding:8px;font-size:10px">Empty</div>';
     var html = '<table class="storage-table"><thead><tr><th>Key</th><th>Value</th><th>Actions</th></tr></thead><tbody>';
-    keys.forEach(function(k) {
+    keys.forEach(function(k, idx) {
       var val = String(obj[k]);
-      var safeKey = k.replace(/'/g, "\\'");
-      var safeVal = val.replace(/'/g, "\\'");
+      // Use index-based onclick to avoid any HTML/JS injection via key or value strings
       html += '<tr><td>' + escHtml(k) + '</td><td>' + escHtml(val.length > 100 ? val.substring(0,100) + '...' : val) + '</td><td>' +
-        '<button class="edit-btn" onclick="editStorage(\'' + safeKey + '\',\'' + safeVal.substring(0,50).replace(/\\/g,'\\\\') + '\')">Edit</button>' +
-        '<button class="del-btn" onclick="deleteStorage(\'' + safeKey + '\')">Del</button>' +
+        '<button class="edit-btn" onclick="editStorageByIndex(\'' + escHtml(type) + '\',' + idx + ')">Edit</button>' +
+        '<button class="del-btn" onclick="deleteStorageByIndex(\'' + escHtml(type) + '\',' + idx + ')">Del</button>' +
         '</td></tr>';
     });
     html += '</tbody></table>';
@@ -471,6 +473,29 @@ function receiveStorage(data) {
     '<div class="storage-section"><h3>sessionStorage (' + Object.keys(data.sessionStorage || {}).length + ' items)</h3>' +
     renderTable(data.sessionStorage || {}, 'session') + '</div>';
   content.innerHTML = html;
+}
+
+function editStorageByIndex(type, idx) {
+  if (!window._storageData) return;
+  var obj = type === 'local' ? window._storageData.localStorage : window._storageData.sessionStorage;
+  var key = Object.keys(obj)[idx];
+  if (key === undefined) return;
+  var newVal = prompt('Edit value for "' + key + '":', String(obj[key]));
+  if (newVal !== null && window.DevToolsBridge) {
+    DevToolsBridge.editLocalStorage(key, newVal);
+    setTimeout(loadStorage, 300);
+  }
+}
+
+function deleteStorageByIndex(type, idx) {
+  if (!window._storageData) return;
+  var obj = type === 'local' ? window._storageData.localStorage : window._storageData.sessionStorage;
+  var key = Object.keys(obj)[idx];
+  if (key === undefined) return;
+  if (confirm('Delete "' + escHtml(key) + '"?') && window.DevToolsBridge) {
+    DevToolsBridge.deleteLocalStorage(key);
+    setTimeout(loadStorage, 300);
+  }
 }
 
 function editStorage(key, currentVal) {

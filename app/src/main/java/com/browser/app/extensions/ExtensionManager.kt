@@ -141,9 +141,16 @@ class ExtensionManager(private val context: Context) {
 
                     cs.cssFiles.forEach { cssFile ->
                         files[cssFile]?.let { css ->
-                            // Use a safe injection approach via JSON.parse to avoid JS string escaping issues
-                            val jsonEncoded = org.json.JSONObject.quote(css)
-                            val script = "(function() { var style = document.createElement('style'); style.textContent = JSON.parse($jsonEncoded); document.head.appendChild(style); })();"
+                            // Use a data URI approach: encode CSS as a base64 data URI to avoid
+                            // any JS string injection – textContent is set directly, never eval'd
+                            val encoded = android.util.Base64.encodeToString(css.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                            val script = """
+                                (function() {
+                                    var style = document.createElement('style');
+                                    style.textContent = atob('$encoded');
+                                    document.head.appendChild(style);
+                                })();
+                            """.trimIndent()
                             webView.evaluateJavascript(script, null)
                         }
                     }

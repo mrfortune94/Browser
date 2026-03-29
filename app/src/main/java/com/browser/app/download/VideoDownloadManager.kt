@@ -17,7 +17,7 @@ class VideoDownloadManager(private val context: Context) {
 
     suspend fun downloadVideo(videoUrl: String, filename: String = "video.mp4"): Result<Unit> {
         if (videoUrl.startsWith("blob:")) {
-            return Result.failure(UnsupportedOperationException("Blob URLs cannot be downloaded directly. The video may use DRM or streaming encryption."))
+            return Result.failure(UnsupportedOperationException("Blob URLs are client-side generated and cannot be downloaded directly from a remote server."))
         }
         return withContext(Dispatchers.IO) {
             try {

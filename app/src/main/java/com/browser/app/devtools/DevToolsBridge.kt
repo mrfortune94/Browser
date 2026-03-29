@@ -134,11 +134,12 @@ class DevToolsBridge(
     @JavascriptInterface
     fun inspectElement(selector: String) {
         scope.launch(Dispatchers.Main) {
-            // Properly escape backslashes first, then quotes to prevent JS injection
-            val escapedSel = selector.replace("\\", "\\\\").replace("'", "\\'")
+            // Use JSONObject.quote() to safely encode the selector as a JS string literal,
+            // avoiding all injection vectors regardless of backslash/quote combinations.
+            val jsonSelector = org.json.JSONObject.quote(selector)
             pageWebView.evaluateJavascript("""
                 (function() {
-                    var el = document.querySelector('$escapedSel');
+                    var el = document.querySelector($jsonSelector);
                     if (!el) return JSON.stringify({error: 'Element not found'});
                     var computed = window.getComputedStyle(el);
                     var styles = {};

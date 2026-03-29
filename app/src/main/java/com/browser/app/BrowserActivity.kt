@@ -72,6 +72,8 @@ class BrowserActivity : AppCompatActivity() {
     companion object {
         private const val PERMISSION_REQUEST_STORAGE = 100
         private const val MAX_DISPLAY_URL_LENGTH = 80
+        private const val ELLIPSIS = "..."
+        private const val PRIVATE_MODE_ICON = "\uD83D\uDD12"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -351,7 +353,7 @@ class BrowserActivity : AppCompatActivity() {
                 textSize = 16f
             }
             val urlText = TextView(this).apply {
-                text = if (videoUrl.length > MAX_DISPLAY_URL_LENGTH) videoUrl.take(MAX_DISPLAY_URL_LENGTH) + "..." else videoUrl
+                text = if (videoUrl.length > MAX_DISPLAY_URL_LENGTH) videoUrl.take(MAX_DISPLAY_URL_LENGTH) + ELLIPSIS else videoUrl
                 textSize = 11f
                 setTextColor(ContextCompat.getColor(this@BrowserActivity, android.R.color.darker_gray))
                 setPadding(0, 8, 0, 8)
@@ -370,8 +372,9 @@ class BrowserActivity : AppCompatActivity() {
                 .setView(dialogView)
                 .setPositiveButton("Download") { _, _ ->
                     val rawName = filenameInput.text.toString().ifBlank { "video.mp4" }
-                    // Sanitize: strip path separators and null bytes, limit length
-                    val filename = rawName.replace(Regex("[/\\\\:*?\"<>|\u0000]"), "_").take(128).ifBlank { "video.mp4" }
+                    // Sanitize: strip path separators and null bytes, then reject any ".." traversal segments
+                    val sanitized = rawName.replace(Regex("[/\\\\:*?\"<>|\u0000]"), "_").take(128).ifBlank { "video.mp4" }
+                    val filename = if (sanitized.contains("..")) sanitized.replace("..", "_") else sanitized
                         .let { if (it.contains('.')) it else "$it.mp4" }
                     lifecycleScope.launch {
                         val result = videoDownloadManager.downloadVideo(videoUrl, filename)
@@ -440,7 +443,7 @@ class BrowserActivity : AppCompatActivity() {
                 )
             }
             val titleView = TextView(this).apply {
-                text = (if (tab.isPrivate) "\uD83D\uDD12 " else "") + tab.title.take(15)
+                text = (if (tab.isPrivate) "$PRIVATE_MODE_ICON " else "") + tab.title.take(15)
                 setTextColor(android.graphics.Color.WHITE)
                 textSize = 12f
                 setOnClickListener { switchToTab(index) }
@@ -496,7 +499,7 @@ class BrowserActivity : AppCompatActivity() {
             if (isPrivateMode) privacyManager.enablePrivateMode(wv)
             else privacyManager.disablePrivateMode(wv)
         }
-        Toast.makeText(this, if (isPrivateMode) "\uD83D\uDD12 Private mode ON" else "Private mode OFF", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, if (isPrivateMode) "$PRIVATE_MODE_ICON Private mode ON" else "Private mode OFF", Toast.LENGTH_SHORT).show()
         invalidateOptionsMenu()
     }
 
