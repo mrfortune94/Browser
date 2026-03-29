@@ -15,19 +15,22 @@ import java.net.URL
 
 class VideoDownloadManager(private val context: Context) {
 
-    suspend fun downloadVideo(videoUrl: String, filename: String = "video.mp4") {
+    suspend fun downloadVideo(videoUrl: String, filename: String = "video.mp4"): Result<Unit> {
         if (videoUrl.startsWith("blob:")) {
-            return
+            return Result.failure(UnsupportedOperationException("Blob URLs cannot be downloaded directly. The video may use DRM or streaming encryption."))
         }
-        withContext(Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
             try {
                 downloadWithDownloadManager(videoUrl, filename)
+                Result.success(Unit)
             } catch (e: Exception) {
                 e.printStackTrace()
                 try {
                     downloadDirectly(videoUrl, filename)
+                    Result.success(Unit)
                 } catch (ex: Exception) {
                     ex.printStackTrace()
+                    Result.failure(ex)
                 }
             }
         }

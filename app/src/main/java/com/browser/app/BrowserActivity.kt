@@ -71,8 +71,7 @@ class BrowserActivity : AppCompatActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_STORAGE = 100
-        private const val HOME_URL = BrowserConstants.HOME_URL
-        private const val LONG_PRESS_DURATION = BrowserConstants.LONG_PRESS_DURATION_MS
+        private const val MAX_DISPLAY_URL_LENGTH = 80
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,7 +89,7 @@ class BrowserActivity : AppCompatActivity() {
             extensionManager.loadExtensions()
         }
 
-        val intentUrl = intent?.data?.toString() ?: HOME_URL
+        val intentUrl = intent?.data?.toString() ?: BrowserConstants.HOME_URL
         createNewTab(intentUrl)
         requestStoragePermissions()
     }
@@ -155,7 +154,7 @@ class BrowserActivity : AppCompatActivity() {
             setImageDrawable(ContextCompat.getDrawable(this@BrowserActivity, R.drawable.ic_home))
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             contentDescription = "Home"
-            setOnClickListener { getCurrentWebView()?.loadUrl(HOME_URL) }
+            setOnClickListener { getCurrentWebView()?.loadUrl(BrowserConstants.HOME_URL) }
         }
 
         navRow.addView(btnBack, LinearLayout.LayoutParams(80, 80))
@@ -215,7 +214,7 @@ class BrowserActivity : AppCompatActivity() {
         updateTabStrip()
 
         if (isPrivate) privacyManager.applyPrivacySettings(webView)
-        webView.loadUrl(if (url.isBlank()) HOME_URL else url)
+        webView.loadUrl(if (url.isBlank()) BrowserConstants.HOME_URL else url)
         return tab
     }
 
@@ -330,7 +329,7 @@ class BrowserActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    longPressHandler.postDelayed(longPressRunnable!!, LONG_PRESS_DURATION)
+                    longPressHandler.postDelayed(longPressRunnable!!, BrowserConstants.LONG_PRESS_DURATION_MS)
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_MOVE -> {
                     longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
@@ -352,7 +351,7 @@ class BrowserActivity : AppCompatActivity() {
                 textSize = 16f
             }
             val urlText = TextView(this).apply {
-                text = if (videoUrl.length > 80) videoUrl.take(80) + "..." else videoUrl
+                text = if (videoUrl.length > MAX_DISPLAY_URL_LENGTH) videoUrl.take(MAX_DISPLAY_URL_LENGTH) + "..." else videoUrl
                 textSize = 11f
                 setTextColor(ContextCompat.getColor(this@BrowserActivity, android.R.color.darker_gray))
                 setPadding(0, 8, 0, 8)
@@ -372,9 +371,13 @@ class BrowserActivity : AppCompatActivity() {
                 .setPositiveButton("Download") { _, _ ->
                     val filename = filenameInput.text.toString().ifBlank { "video.mp4" }
                     lifecycleScope.launch {
-                        videoDownloadManager.downloadVideo(videoUrl, filename)
+                        val result = videoDownloadManager.downloadVideo(videoUrl, filename)
+                        result.onSuccess {
+                            Toast.makeText(this@BrowserActivity, "Download started: $filename", Toast.LENGTH_SHORT).show()
+                        }.onFailure { e ->
+                            Toast.makeText(this@BrowserActivity, "Download failed: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
                     }
-                    Toast.makeText(this, "Download started: $filename", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
@@ -411,7 +414,7 @@ class BrowserActivity : AppCompatActivity() {
 
     private fun closeTab(index: Int) {
         if (tabs.size <= 1) {
-            tabs[0].webView?.loadUrl(HOME_URL)
+            tabs[0].webView?.loadUrl(BrowserConstants.HOME_URL)
             return
         }
         tabs[index].webView?.destroy()
@@ -455,7 +458,7 @@ class BrowserActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.WHITE)
             textSize = 20f
             setPadding(16, 8, 16, 8)
-            setOnClickListener { createNewTab(HOME_URL) }
+            setOnClickListener { createNewTab(BrowserConstants.HOME_URL) }
         }
         tabStrip.addView(addBtn)
     }
@@ -473,7 +476,7 @@ class BrowserActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            1 -> { createNewTab(HOME_URL); true }
+            1 -> { createNewTab(BrowserConstants.HOME_URL); true }
             2 -> { togglePrivateMode(); true }
             3 -> { showExtensionsDialog(); true }
             4 -> { toggleDevTools(); true }

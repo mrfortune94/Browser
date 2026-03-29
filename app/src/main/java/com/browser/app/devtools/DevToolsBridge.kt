@@ -5,6 +5,8 @@ import android.webkit.WebView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 class DevToolsBridge(
     private val pageWebView: WebView,
@@ -12,11 +14,20 @@ class DevToolsBridge(
     private val scope: CoroutineScope
 ) {
 
+    /** Escapes a string for safe embedding inside a single-quoted JS string literal. */
+    private fun escapeJsString(s: String): String = s
+        .replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("\u0000", "\\u0000")
+
     @JavascriptInterface
     fun executeInPage(javascript: String) {
         scope.launch(Dispatchers.Main) {
             pageWebView.evaluateJavascript(javascript) { result ->
-                val escaped = result?.replace("\\", "\\\\")?.replace("'", "\\'") ?: "null"
+                val escaped = escapeJsString(result ?: "null")
                 devToolsWebView.evaluateJavascript("window.receiveConsoleResult('$escaped')", null)
             }
         }
@@ -106,8 +117,8 @@ class DevToolsBridge(
     @JavascriptInterface
     fun editLocalStorage(key: String, value: String) {
         scope.launch(Dispatchers.Main) {
-            val escapedKey = key.replace("'", "\\'")
-            val escapedVal = value.replace("'", "\\'")
+            val escapedKey = escapeJsString(key)
+            val escapedVal = escapeJsString(value)
             pageWebView.evaluateJavascript("localStorage.setItem('$escapedKey', '$escapedVal'); 'done'", null)
         }
     }
@@ -115,7 +126,7 @@ class DevToolsBridge(
     @JavascriptInterface
     fun deleteLocalStorage(key: String) {
         scope.launch(Dispatchers.Main) {
-            val escapedKey = key.replace("'", "\\'")
+            val escapedKey = escapeJsString(key)
             pageWebView.evaluateJavascript("localStorage.removeItem('$escapedKey'); 'done'", null)
         }
     }
@@ -204,8 +215,9 @@ class DevToolsBridge(
     @JavascriptInterface
     fun onConsoleLog(level: String, message: String) {
         devToolsWebView.post {
-            val escaped = message.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").take(500)
-            devToolsWebView.evaluateJavascript("window.appendConsoleLog('$level', '$escaped')", null)
+            val escaped = escapeJsString(message.take(500))
+            val safeLevel = escapeJsString(level)
+            devToolsWebView.evaluateJavascript("window.appendConsoleLog('$safeLevel', '$escaped')", null)
         }
     }
 }

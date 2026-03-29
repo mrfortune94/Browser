@@ -69,9 +69,14 @@ class DevToolsManager(
     fun isShowing() = devToolsWindow?.isShowing == true
 
     fun addNetworkRequest(tab: BrowserTab, url: String, method: String, responseCode: Int, contentType: String, size: Long, timeMs: Long) {
-        val safeUrl = url.take(200).replace("\"", "\\\"")
-        val safeType = contentType.split(";")[0].trim().replace("\"", "")
-        val json = """{"url":"$safeUrl","method":"$method","status":$responseCode,"type":"$safeType","size":$size,"time":$timeMs}"""
+        val json = JSONObject().apply {
+            put("url", url.take(200))
+            put("method", method)
+            put("status", responseCode)
+            put("type", contentType.split(";")[0].trim())
+            put("size", size)
+            put("time", timeMs)
+        }.toString()
         devToolsWebView?.post {
             devToolsWebView?.evaluateJavascript("if(window.addNetworkRequest) window.addNetworkRequest($json)", null)
         }
