@@ -222,4 +222,243 @@ class DevToolsBridge(
             devToolsWebView.evaluateJavascript("window.appendConsoleLog('$safeLevel', '$escaped')", null)
         }
     }
+
+    // ---- API Intercept / Modify / Replay ----
+
+    /** Called from page JS when a fetch() or XHR is opened/sent. */
+    @JavascriptInterface
+    fun onApiRequest(json: String) {
+        devToolsWebView.post {
+            devToolsWebView.evaluateJavascript("if(window.addApiRequest) window.addApiRequest($json)", null)
+        }
+    }
+
+    /** Called from page JS when a fetch() or XHR receives a response. */
+    @JavascriptInterface
+    fun onApiResponse(json: String) {
+        devToolsWebView.post {
+            devToolsWebView.evaluateJavascript("if(window.addApiResponse) window.addApiResponse($json)", null)
+        }
+    }
+
+    /**
+     * Called from DevTools UI to replay a request (possibly with modifications).
+     * Executes the fetch in the page context so it carries the page's cookies/auth.
+     */
+    @JavascriptInterface
+    fun replayApiRequest(json: String) {
+        scope.launch(Dispatchers.Main) {
+            try {
+                val data = JSONObject(json)
+                val method = data.optString("method", "GET").uppercase()
+                val url = data.optString("url", "")
+                val headersObj = data.optJSONObject("headers") ?: JSONObject()
+                val body = data.optString("body", "")
+
+                if (url.isBlank()) {
+                    val errMsg = escapeJsString("Error: URL must not be empty")
+                    devToolsWebView.post {
+                        devToolsWebView.evaluateJavascript(
+                            "if(window.receiveReplayResult) window.receiveReplayResult(JSON.stringify({ok:false,error:'$errMsg'}))", null)
+                    }
+                    return@launch
+                }
+
+                // Build header entries as JSON object literal for injection
+                val headersLiteral = StringBuilder("{")
+                val keys = headersObj.keys()
+                var first = true
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    if (!first) headersLiteral.append(",")
+                    headersLiteral.append(org.json.JSONObject.quote(key))
+                        .append(":")
+                        .append(org.json.JSONObject.quote(headersObj.getString(key)))
+                    first = false
+                }
+                headersLiteral.append("}")
+
+                val bodyArg = if (body.isNullOrBlank() || method == "GET" || method == "HEAD") "undefined"
+                              else org.json.JSONObject.quote(body)
+
+                // Inject a self-invoking async function that calls back via DevToolsBridge
+                val script = """
+                    (function() {
+                        fetch(${org.json.JSONObject.quote(url)}, {
+                            method: ${org.json.JSONObject.quote(method)},
+                            headers: $headersLiteral,
+                            body: $bodyArg,
+                            credentials: 'include'
+                        }).then(function(r) {
+                            return r.text().then(function(t) {
+                                var rh = {};
+                                try { r.headers.forEach(function(v,k){ rh[k]=v; }); } catch(e) {}
+                                if (window.DevToolsBridge) {
+                                    DevToolsBridge.onApiReplayResult(JSON.stringify({
+                                        ok: true, status: r.status, headers: rh,
+                                        body: t.substring(0, 10000)
+                                    }));
+                                }
+                            });
+                        }).catch(function(e) {
+                            if (window.DevToolsBridge) {
+                                DevToolsBridge.onApiReplayResult(JSON.stringify({
+                                    ok: false, error: String(e)
+                                }));
+                            }
+                        });
+                    })();
+                """.trimIndent()
+
+                pageWebView.evaluateJavascript(script, null)
+            } catch (e: Exception) {
+                val errMsg = escapeJsString("Error: ${e.message}")
+                devToolsWebView.post {
+                    devToolsWebView.evaluateJavascript(
+                        "if(window.receiveReplayResult) window.receiveReplayResult(JSON.stringify({ok:false,error:'$errMsg'}))", null)
+                }
+            }
+        }
+    }
+
+    /** Called from page JS when the replayed fetch completes. */
+    @JavascriptInterface
+    fun onApiReplayResult(json: String) {
+        devToolsWebView.post {
+            devToolsWebView.evaluateJavascript("if(window.receiveReplayResult) window.receiveReplayResult($json)", null)
+        }
+    }
+
+    /**
+     * Injects XHR and fetch interceptors into the page so every API call is
+     * forwarded to the DevTools API panel via [onApiRequest] / [onApiResponse].
+     */
+    fun injectApiInterceptScript(webView: WebView) {
+        val script = """
+            (function() {
+                if (window.__apiInterceptInjected) return;
+                window.__apiInterceptInjected = true;
+
+                var _fetch = window.fetch;
+                var _XHROpen = XMLHttpRequest.prototype.open;
+                var _XHRSend = XMLHttpRequest.prototype.send;
+                var _XHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+                var __reqCounter = 0;
+
+                // ---- Intercept fetch() ----
+                window.fetch = function(input, init) {
+                    var id = ++__reqCounter;
+                    var url = typeof input === 'string' ? input : ((input && input.url) ? input.url : String(input));
+                    var method = (init && init.method) ||
+                                 (input && typeof input === 'object' && input.method) || 'GET';
+                    var headers = {};
+                    if (init && init.headers) {
+                        try {
+                            if (typeof Headers !== 'undefined' && init.headers instanceof Headers) {
+                                init.headers.forEach(function(v, k) { headers[k] = v; });
+                            } else {
+                                Object.assign(headers, init.headers);
+                            }
+                        } catch(e) {}
+                    }
+                    var body = null;
+                    if (init && init.body != null) {
+                        try { body = typeof init.body === 'string' ? init.body : JSON.stringify(init.body); }
+                        catch(e) { body = String(init.body); }
+                    }
+                    var startTime = Date.now();
+                    if (window.DevToolsBridge) {
+                        try {
+                            DevToolsBridge.onApiRequest(JSON.stringify({
+                                id: id, type: 'fetch', method: method.toUpperCase(),
+                                url: url, headers: headers, body: body, time: startTime
+                            }));
+                        } catch(e) {}
+                    }
+                    return _fetch.apply(this, arguments)
+                        .then(function(response) {
+                            var duration = Date.now() - startTime;
+                            var cloned = response.clone();
+                            cloned.text().then(function(text) {
+                                var respHeaders = {};
+                                try { response.headers.forEach(function(v, k) { respHeaders[k] = v; }); } catch(e) {}
+                                if (window.DevToolsBridge) {
+                                    try {
+                                        DevToolsBridge.onApiResponse(JSON.stringify({
+                                            id: id, status: response.status,
+                                            statusText: response.statusText,
+                                            headers: respHeaders,
+                                            body: text.substring(0, 8000),
+                                            duration: duration
+                                        }));
+                                    } catch(e) {}
+                                }
+                            }).catch(function(){});
+                            return response;
+                        })
+                        .catch(function(err) {
+                            if (window.DevToolsBridge) {
+                                try {
+                                    DevToolsBridge.onApiResponse(JSON.stringify({
+                                        id: id, status: 0, statusText: String(err),
+                                        headers: {}, body: '', duration: Date.now() - startTime
+                                    }));
+                                } catch(e) {}
+                            }
+                            throw err;
+                        });
+                };
+
+                // ---- Intercept XMLHttpRequest ----
+                XMLHttpRequest.prototype.open = function(method, url) {
+                    this.__fbt_id = ++__reqCounter;
+                    this.__fbt_method = method;
+                    this.__fbt_url = url;
+                    this.__fbt_headers = {};
+                    return _XHROpen.apply(this, arguments);
+                };
+
+                XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+                    if (this.__fbt_headers) this.__fbt_headers[name] = value;
+                    return _XHRSetHeader.apply(this, arguments);
+                };
+
+                XMLHttpRequest.prototype.send = function(body) {
+                    var self = this;
+                    var id = this.__fbt_id;
+                    var startTime = Date.now();
+                    if (window.DevToolsBridge && id) {
+                        try {
+                            var bodyStr = null;
+                            if (body != null) {
+                                try { bodyStr = typeof body === 'string' ? body : JSON.stringify(body); }
+                                catch(e) { bodyStr = String(body); }
+                            }
+                            DevToolsBridge.onApiRequest(JSON.stringify({
+                                id: id, type: 'xhr',
+                                method: (self.__fbt_method || 'GET').toUpperCase(),
+                                url: self.__fbt_url || '',
+                                headers: self.__fbt_headers || {},
+                                body: bodyStr, time: startTime
+                            }));
+                        } catch(e) {}
+                    }
+                    this.addEventListener('loadend', function() {
+                        if (window.DevToolsBridge && id) {
+                            try {
+                                DevToolsBridge.onApiResponse(JSON.stringify({
+                                    id: id, status: self.status,
+                                    statusText: self.statusText,
+                                    headers: {}, body: (self.responseText || '').substring(0, 8000),
+                                    duration: Date.now() - startTime
+                                }));
+                            } catch(e) {}
+                        }
+                    });
+                    return _XHRSend.apply(this, arguments);
+                };
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(script, null)
+    }
 }

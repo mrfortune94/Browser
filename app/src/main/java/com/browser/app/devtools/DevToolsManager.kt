@@ -44,6 +44,7 @@ class DevToolsManager(
             bridge = b
             dtWebView.addJavascriptInterface(b, "DevToolsBridge")
             b.injectConsoleCaptureScript(pageWebView)
+            b.injectApiInterceptScript(pageWebView)
         }
 
         dtWebView.loadUrl("file:///android_asset/devtools/devtools.html")
@@ -87,6 +88,7 @@ class DevToolsManager(
         if (isShowing()) {
             tab.webView?.let { pageWebView ->
                 bridge?.injectConsoleCaptureScript(pageWebView)
+                bridge?.injectApiInterceptScript(pageWebView)
             }
         }
     }

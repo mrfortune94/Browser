@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>DevTools</title>
+<title>Fortunate Browser DevTools</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', monospace; }
   body { background: #1e1e1e; color: #d4d4d4; font-size: 12px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -112,6 +112,55 @@
   .res-type { flex: 1; color: #9cdcfe; }
   .res-size { flex: 1; color: #dcdcaa; text-align: right; }
   .res-time { flex: 1; color: #4ec9b0; text-align: right; }
+
+  /* API Intercept */
+  #api-toolbar { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; flex-shrink: 0; }
+  #api-clear { background: #3c3c3c; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; font-size: 11px; }
+  #api-filter { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 8px; font-size: 11px; flex: 1; outline: none; }
+  #api-filter:focus { border-color: #4ec9b0; }
+  #api-count { font-size: 10px; color: #9d9d9d; white-space: nowrap; }
+  #api-split { flex: 1; display: flex; flex-direction: column; overflow: hidden; gap: 0; }
+  #api-list-wrap { flex: 0 0 45%; overflow-y: auto; border: 1px solid #3c3c3c; }
+  #api-table { width: 100%; border-collapse: collapse; }
+  #api-table th { background: #252526; color: #9d9d9d; padding: 5px 8px; text-align: left; font-size: 10px; border-bottom: 1px solid #3c3c3c; position: sticky; top: 0; }
+  #api-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; font-size: 10px; word-break: break-all; cursor: pointer; }
+  #api-table tr:hover td { background: #2d2d2d; }
+  #api-table tr.selected td { background: #094771; }
+  .method-get { color: #4ec9b0; }
+  .method-post { color: #dcdcaa; }
+  .method-put { color: #ce9178; }
+  .method-delete { color: #f44747; }
+  .method-patch { color: #c586c0; }
+  #api-detail-pane { flex: 1; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #3c3c3c; border-top: none; background: #1e1e1e; }
+  #api-detail-pane.hidden { display: none; }
+  #api-detail-title { background: #252526; padding: 5px 10px; font-size: 11px; color: #9cdcfe; border-bottom: 1px solid #3c3c3c; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #api-sub-tabs { display: flex; background: #2d2d2d; border-bottom: 1px solid #3c3c3c; flex-shrink: 0; }
+  .api-sub-btn { padding: 5px 12px; background: none; border: none; color: #9d9d9d; font-size: 10px; cursor: pointer; border-bottom: 2px solid transparent; }
+  .api-sub-btn:hover { color: #d4d4d4; }
+  .api-sub-btn.active { color: #4ec9b0; border-bottom-color: #4ec9b0; }
+  #api-sub-content { flex: 1; overflow-y: auto; padding: 8px; }
+  .api-field-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+  .api-field-label { color: #9d9d9d; font-size: 10px; min-width: 70px; padding-top: 4px; }
+  .api-field-value { color: #d4d4d4; font-size: 10px; flex: 1; word-break: break-all; }
+  .api-field-input { flex: 1; background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 4px 6px; font-size: 10px; font-family: 'Courier New', monospace; outline: none; resize: vertical; min-height: 28px; }
+  .api-field-input:focus { border-color: #4ec9b0; }
+  .api-textarea { min-height: 60px; }
+  #api-header-editor { width: 100%; margin-bottom: 6px; }
+  #api-header-editor th { background: #252526; color: #9d9d9d; padding: 3px 6px; font-size: 10px; }
+  #api-header-editor td { padding: 2px 4px; }
+  #api-header-editor input { background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 2px 4px; font-size: 10px; width: 100%; outline: none; font-family: 'Courier New', monospace; }
+  #api-add-header-btn { background: #3c3c3c; color: #d4d4d4; border: none; padding: 3px 8px; cursor: pointer; font-size: 10px; margin-bottom: 6px; }
+  #api-replay-btn { background: #0e639c; color: #fff; border: none; padding: 6px 14px; cursor: pointer; font-size: 11px; margin-right: 6px; }
+  #api-replay-btn:hover { background: #1177bb; }
+  #api-replay-btn:disabled { background: #3c3c3c; color: #666; cursor: default; }
+  #api-replay-result { background: #252526; border: 1px solid #3c3c3c; padding: 8px; margin-top: 8px; font-size: 10px; overflow-y: auto; max-height: 200px; }
+  #api-replay-result .res-ok { color: #4ec9b0; }
+  #api-replay-result .res-err { color: #f44747; }
+  .api-resp-body { background: #252526; border: 1px solid #3c3c3c; padding: 6px; font-size: 10px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; }
+  .api-badge { display: inline-block; padding: 1px 5px; border-radius: 2px; font-size: 9px; font-weight: bold; margin-right: 4px; }
+  .api-badge.xhr { background: #3c3c3c; color: #9cdcfe; }
+  .api-badge.fetch { background: #1a3c5e; color: #4ec9b0; }
+  .api-badge.replay { background: #2d4a1e; color: #85d96e; }
 </style>
 </head>
 <body>
@@ -123,6 +172,7 @@
   <button class="tab-btn" onclick="switchTab('sources')">Sources</button>
   <button class="tab-btn" onclick="switchTab('storage')">Storage</button>
   <button class="tab-btn" onclick="switchTab('performance')">Performance</button>
+  <button class="tab-btn" onclick="switchTab('api')">API ⚡</button>
 </div>
 
 <div id="panels">
@@ -187,6 +237,74 @@
     <button id="perf-reload" onclick="loadPerformance()">Refresh Metrics</button>
     <div id="perf-content">Loading performance data...</div>
   </div>
+
+  <!-- API Intercept / Modify / Replay Panel -->
+  <div id="panel-api" class="panel">
+    <div id="api-toolbar">
+      <button id="api-clear" onclick="clearApi()">Clear</button>
+      <input id="api-filter" type="text" placeholder="Filter by URL..." oninput="filterApi()">
+      <span id="api-count">0 requests</span>
+    </div>
+    <div id="api-split">
+      <div id="api-list-wrap">
+        <table id="api-table">
+          <thead><tr><th>Type</th><th>Method</th><th>URL</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody id="api-body"></tbody>
+        </table>
+      </div>
+      <div id="api-detail-pane" class="hidden">
+        <div id="api-detail-title">No request selected</div>
+        <div id="api-sub-tabs">
+          <button class="api-sub-btn active" onclick="showApiSubTab('request')">Request</button>
+          <button class="api-sub-btn" onclick="showApiSubTab('response')">Response</button>
+          <button class="api-sub-btn" onclick="showApiSubTab('replay')">Replay &amp; Modify</button>
+        </div>
+        <div id="api-sub-content">
+          <!-- Request sub-tab -->
+          <div id="api-sub-request">
+            <div class="api-field-row"><span class="api-field-label">URL</span><span class="api-field-value" id="req-url-display"></span></div>
+            <div class="api-field-row"><span class="api-field-label">Method</span><span class="api-field-value" id="req-method-display"></span></div>
+            <div class="api-field-row"><span class="api-field-label">Headers</span></div>
+            <div id="req-headers-display" style="font-size:10px;padding-left:76px;margin-bottom:6px;"></div>
+            <div class="api-field-row"><span class="api-field-label">Body</span><div class="api-resp-body" id="req-body-display">—</div></div>
+          </div>
+          <!-- Response sub-tab -->
+          <div id="api-sub-response" style="display:none">
+            <div class="api-field-row"><span class="api-field-label">Status</span><span class="api-field-value" id="resp-status-display">Pending…</span></div>
+            <div class="api-field-row"><span class="api-field-label">Headers</span></div>
+            <div id="resp-headers-display" style="font-size:10px;padding-left:76px;margin-bottom:6px;"></div>
+            <div class="api-field-row"><span class="api-field-label">Body</span><div class="api-resp-body" id="resp-body-display">Pending…</div></div>
+          </div>
+          <!-- Replay sub-tab -->
+          <div id="api-sub-replay" style="display:none">
+            <div style="color:#dcdcaa;font-size:10px;margin-bottom:8px;">Edit request then click Replay to re-send with modifications.</div>
+            <div class="api-field-row">
+              <span class="api-field-label">Method</span>
+              <select id="replay-method" class="api-field-input" style="min-height:0;height:24px;">
+                <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+              </select>
+            </div>
+            <div class="api-field-row">
+              <span class="api-field-label">URL</span>
+              <input id="replay-url" type="text" class="api-field-input" placeholder="https://...">
+            </div>
+            <div style="color:#9d9d9d;font-size:10px;margin-bottom:4px;">Headers:</div>
+            <table id="api-header-editor"><thead><tr><th>Name</th><th>Value</th><th></th></tr></thead><tbody id="replay-headers-body"></tbody></table>
+            <button id="api-add-header-btn" onclick="addReplayHeader()">+ Add Header</button>
+            <div class="api-field-row">
+              <span class="api-field-label">Body</span>
+              <textarea id="replay-body" class="api-field-input api-textarea" placeholder="Request body (JSON, form data, etc.)"></textarea>
+            </div>
+            <div style="margin-top:8px;">
+              <button id="api-replay-btn" onclick="replayRequest()">▶ Replay</button>
+              <span style="font-size:10px;color:#9d9d9d;" id="replay-status"></span>
+            </div>
+            <div id="api-replay-result" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -198,7 +316,7 @@ var historyIndex = -1;
 function switchTab(name) {
   currentTab = name;
   document.querySelectorAll('.tab-btn').forEach(function(b, i) {
-    var tabs = ['console','network','elements','sources','storage','performance'];
+    var tabs = ['console','network','elements','sources','storage','performance','api'];
     b.classList.toggle('active', tabs[i] === name);
   });
   document.querySelectorAll('.panel').forEach(function(p) {
@@ -574,7 +692,250 @@ function formatBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-appendConsoleLog('info', 'DevTools initialized. Bridge: ' + (window.DevToolsBridge ? 'connected' : 'not connected'));
+appendConsoleLog('info', 'Fortunate Browser DevTools initialized. Bridge: ' + (window.DevToolsBridge ? 'connected' : 'not connected'));
+
+// ---- API Intercept / Modify / Replay ----
+var apiRequests = [];        // { id, type, method, url, headers, body, time, status, respHeaders, respBody, duration }
+var selectedApiIdx = -1;
+var currentApiSubTab = 'request';
+
+function addApiRequest(data) {
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { return; } }
+  // Upsert by id (request may arrive before response)
+  var existing = null;
+  for (var i = 0; i < apiRequests.length; i++) {
+    if (apiRequests[i].id === data.id) { existing = i; break; }
+  }
+  if (existing !== null) {
+    Object.assign(apiRequests[existing], data);
+    refreshApiRow(existing);
+  } else {
+    apiRequests.push(data);
+    renderApiRow(data, apiRequests.length - 1);
+    updateApiCount();
+  }
+  if (selectedApiIdx >= 0 && apiRequests[selectedApiIdx] && apiRequests[selectedApiIdx].id === data.id) {
+    populateApiDetail(selectedApiIdx);
+  }
+}
+
+function addApiResponse(data) {
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { return; } }
+  for (var i = 0; i < apiRequests.length; i++) {
+    if (apiRequests[i].id === data.id) {
+      apiRequests[i].status = data.status;
+      apiRequests[i].statusText = data.statusText;
+      apiRequests[i].respHeaders = data.headers;
+      apiRequests[i].respBody = data.body;
+      apiRequests[i].duration = data.duration;
+      refreshApiRow(i);
+      if (selectedApiIdx === i) populateApiDetail(i);
+      break;
+    }
+  }
+}
+
+function renderApiRow(req, idx) {
+  var filter = document.getElementById('api-filter').value.toLowerCase();
+  if (filter && !req.url.toLowerCase().includes(filter)) return;
+  var tbody = document.getElementById('api-body');
+  var tr = document.createElement('tr');
+  tr.id = 'api-row-' + idx;
+  tr.onclick = (function(i) { return function() { selectApiRequest(i); }; })(idx);
+  tr.innerHTML = buildApiRowHtml(req);
+  tbody.appendChild(tr);
+}
+
+function refreshApiRow(idx) {
+  var tr = document.getElementById('api-row-' + idx);
+  if (tr) tr.innerHTML = buildApiRowHtml(apiRequests[idx]);
+  // Restore click handler
+  tr && (tr.onclick = (function(i) { return function() { selectApiRequest(i); }; })(idx));
+}
+
+function buildApiRowHtml(req) {
+  var shortUrl = req.url.length > 55 ? '...' + req.url.slice(-52) : req.url;
+  var methodClass = 'method-' + (req.method || 'get').toLowerCase();
+  var statusText = req.status != null ? req.status : '…';
+  var statusClass = !req.status ? '' : (req.status >= 200 && req.status < 300) ? 'status-ok' :
+    (req.status >= 300 && req.status < 400) ? 'status-redirect' : 'status-err';
+  var timeText = req.duration != null ? req.duration + 'ms' : '…';
+  var badge = '<span class="api-badge ' + escHtml(req.type || 'fetch') + '">' + escHtml((req.type || 'fetch').toUpperCase()) + '</span>';
+  return '<td>' + badge + '</td>' +
+    '<td class="' + methodClass + '">' + escHtml(req.method || 'GET') + '</td>' +
+    '<td title="' + escHtml(req.url) + '">' + escHtml(shortUrl) + '</td>' +
+    '<td class="' + statusClass + '">' + statusText + '</td>' +
+    '<td>' + timeText + '</td>';
+}
+
+function selectApiRequest(idx) {
+  selectedApiIdx = idx;
+  // Highlight row
+  document.querySelectorAll('#api-body tr').forEach(function(r) { r.classList.remove('selected'); });
+  var row = document.getElementById('api-row-' + idx);
+  if (row) row.classList.add('selected');
+  // Show detail pane
+  var pane = document.getElementById('api-detail-pane');
+  pane.classList.remove('hidden');
+  populateApiDetail(idx);
+  showApiSubTab(currentApiSubTab);
+}
+
+function populateApiDetail(idx) {
+  var req = apiRequests[idx];
+  if (!req) return;
+  // Title
+  document.getElementById('api-detail-title').textContent = req.method + '  ' + req.url;
+  // Request sub-tab
+  document.getElementById('req-url-display').textContent = req.url;
+  document.getElementById('req-method-display').textContent = req.method || 'GET';
+  var hd = document.getElementById('req-headers-display');
+  hd.innerHTML = renderHeadersHtml(req.headers);
+  var bd = document.getElementById('req-body-display');
+  bd.textContent = req.body || '—';
+  // Response sub-tab
+  var status = req.status != null ? (req.status + (req.statusText ? ' ' + req.statusText : '')) : 'Pending…';
+  document.getElementById('resp-status-display').textContent = status;
+  var rhd = document.getElementById('resp-headers-display');
+  rhd.innerHTML = renderHeadersHtml(req.respHeaders);
+  document.getElementById('resp-body-display').textContent = req.respBody || (req.status != null ? '(empty)' : 'Pending…');
+  // Replay sub-tab pre-fill (only if not already edited)
+  if (document.getElementById('replay-url').value === '' || document.getElementById('replay-url').dataset.lastId !== String(req.id)) {
+    document.getElementById('replay-url').value = req.url;
+    document.getElementById('replay-url').dataset.lastId = String(req.id);
+    var sel = document.getElementById('replay-method');
+    sel.value = req.method || 'GET';
+    // Populate headers table
+    var tbody = document.getElementById('replay-headers-body');
+    tbody.innerHTML = '';
+    if (req.headers) {
+      Object.keys(req.headers).forEach(function(k) {
+        addReplayHeaderRow(k, String(req.headers[k]));
+      });
+    }
+    document.getElementById('replay-body').value = req.body || '';
+    document.getElementById('api-replay-result').style.display = 'none';
+    document.getElementById('replay-status').textContent = '';
+  }
+}
+
+function renderHeadersHtml(headers) {
+  if (!headers || Object.keys(headers).length === 0) return '<span style="color:#555">none</span>';
+  return Object.keys(headers).slice(0, 30).map(function(k) {
+    return '<div><span style="color:#9cdcfe">' + escHtml(k) + '</span>: <span style="color:#ce9178">' + escHtml(String(headers[k]).substring(0, 100)) + '</span></div>';
+  }).join('');
+}
+
+function showApiSubTab(name) {
+  currentApiSubTab = name;
+  document.querySelectorAll('.api-sub-btn').forEach(function(b, i) {
+    var tabs = ['request', 'response', 'replay'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.getElementById('api-sub-request').style.display = name === 'request' ? '' : 'none';
+  document.getElementById('api-sub-response').style.display = name === 'response' ? '' : 'none';
+  document.getElementById('api-sub-replay').style.display = name === 'replay' ? '' : 'none';
+}
+
+function addReplayHeader(name, value) {
+  addReplayHeaderRow(name || '', value || '');
+}
+
+function addReplayHeaderRow(name, value) {
+  var tbody = document.getElementById('replay-headers-body');
+  var tr = document.createElement('tr');
+  var idx = tbody.rows.length;
+  tr.innerHTML = '<td><input type="text" placeholder="Header-Name" value="' + escHtml(name) + '"></td>' +
+    '<td><input type="text" placeholder="value" value="' + escHtml(value) + '"></td>' +
+    '<td><button onclick="removeReplayHeader(this)" style="background:#3c3c3c;color:#f44747;border:none;padding:2px 6px;cursor:pointer;font-size:10px;">✕</button></td>';
+  tbody.appendChild(tr);
+}
+
+function removeReplayHeader(btn) {
+  var tr = btn.closest('tr');
+  if (tr) tr.remove();
+}
+
+function replayRequest() {
+  var url = document.getElementById('replay-url').value.trim();
+  var method = document.getElementById('replay-method').value;
+  var body = document.getElementById('replay-body').value;
+  if (!url) { alert('URL is required'); return; }
+
+  var headers = {};
+  var rows = document.getElementById('replay-headers-body').rows;
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var k = inputs[0] ? inputs[0].value.trim() : '';
+    var v = inputs[1] ? inputs[1].value : '';
+    if (k) headers[k] = v;
+  }
+
+  var btn = document.getElementById('api-replay-btn');
+  btn.disabled = true;
+  document.getElementById('replay-status').textContent = 'Sending…';
+  document.getElementById('api-replay-result').style.display = 'none';
+
+  if (window.DevToolsBridge) {
+    try {
+      DevToolsBridge.replayApiRequest(JSON.stringify({ method: method, url: url, headers: headers, body: (method === 'GET' || method === 'HEAD') ? null : body }));
+    } catch(e) {
+      receiveReplayResult(JSON.stringify({ ok: false, error: String(e) }));
+    }
+  } else {
+    receiveReplayResult(JSON.stringify({ ok: false, error: 'DevToolsBridge not available' }));
+  }
+}
+
+function receiveReplayResult(data) {
+  document.getElementById('api-replay-btn').disabled = false;
+  document.getElementById('replay-status').textContent = '';
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { data = { ok: false, error: String(data) }; } }
+  var box = document.getElementById('api-replay-result');
+  box.style.display = 'block';
+  if (data.ok) {
+    var headersHtml = renderHeadersHtml(data.headers);
+    var bodyText = escHtml((data.body || '(empty)').substring(0, 5000));
+    box.innerHTML = '<div class="res-ok">✓ ' + escHtml(String(data.status)) + '</div>' +
+      '<div style="color:#9d9d9d;margin-top:6px;margin-bottom:2px;font-size:10px">Response Headers:</div>' +
+      '<div style="padding-left:8px;font-size:10px">' + headersHtml + '</div>' +
+      '<div style="color:#9d9d9d;margin-top:6px;margin-bottom:2px;font-size:10px">Response Body:</div>' +
+      '<div class="api-resp-body">' + bodyText + '</div>';
+    // Also add to the API request list as a replay entry
+    var replayEntry = {
+      id: Date.now(), type: 'replay', method: document.getElementById('replay-method').value,
+      url: document.getElementById('replay-url').value, headers: {}, body: null,
+      status: data.status, respHeaders: data.headers, respBody: data.body, duration: null
+    };
+    apiRequests.push(replayEntry);
+    renderApiRow(replayEntry, apiRequests.length - 1);
+    updateApiCount();
+  } else {
+    box.innerHTML = '<div class="res-err">✗ Error: ' + escHtml(String(data.error || 'Unknown error')) + '</div>';
+  }
+}
+
+function filterApi() {
+  var filter = document.getElementById('api-filter').value.toLowerCase();
+  var tbody = document.getElementById('api-body');
+  tbody.innerHTML = '';
+  apiRequests.forEach(function(r, i) {
+    if (!filter || r.url.toLowerCase().includes(filter)) renderApiRow(r, i);
+  });
+}
+
+function clearApi() {
+  apiRequests = [];
+  selectedApiIdx = -1;
+  document.getElementById('api-body').innerHTML = '';
+  document.getElementById('api-detail-pane').classList.add('hidden');
+  updateApiCount();
+}
+
+function updateApiCount() {
+  document.getElementById('api-count').textContent = apiRequests.length + ' requests';
+}
+
 </script>
 </body>
 </html>
