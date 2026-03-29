@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Browser</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_new_tab">New Tab</string>
+    <string name="action_private_mode">Private Mode</string>
+    <string name="action_dev_tools">Developer Tools</string>
+    <string name="url_hint">Search or enter address</string>
+    <string name="home_url">https://www.google.com</string>
+    <string name="btn_back">Back</string>
+    <string name="btn_forward">Forward</string>
+    <string name="btn_refresh">Refresh</string>
+    <string name="btn_home">Home</string>
+    <string name="new_tab">New Tab</string>
+    <string name="ad_blocking_on">Ad blocking ON</string>
+    <string name="ad_blocking_off">Ad blocking OFF</string>
+    <string name="private_mode_on">Private mode ON</string>
+    <string name="private_mode_off">Private mode OFF</string>
+</resources>
