@@ -41,6 +41,7 @@ import com.browser.app.devtools.DevToolsManager
 import com.browser.app.download.VideoDownloadManager
 import com.browser.app.extensions.ExtensionManager
 import com.browser.app.privacy.PrivacyManager
+import com.browser.app.BrowserConstants
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -70,8 +71,8 @@ class BrowserActivity : AppCompatActivity() {
 
     companion object {
         private const val PERMISSION_REQUEST_STORAGE = 100
-        private const val HOME_URL = "https://www.google.com"
-        private const val LONG_PRESS_DURATION = 3000L
+        private const val HOME_URL = BrowserConstants.HOME_URL
+        private const val LONG_PRESS_DURATION = BrowserConstants.LONG_PRESS_DURATION_MS
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -230,7 +231,7 @@ class BrowserActivity : AppCompatActivity() {
             loadWithOverviewMode = true
             useWideViewPort = true
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            userAgentString = BrowserConstants.USER_AGENT_MOBILE
             allowFileAccess = true
             javaScriptCanOpenWindowsAutomatically = true
             mediaPlaybackRequiresUserGesture = false
@@ -552,9 +553,9 @@ class BrowserActivity : AppCompatActivity() {
         getCurrentWebView()?.settings?.let { s ->
             val isMobile = s.userAgentString.contains("Mobile")
             s.userAgentString = if (isMobile) {
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                BrowserConstants.USER_AGENT_DESKTOP
             } else {
-                "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                BrowserConstants.USER_AGENT_MOBILE
             }
             Toast.makeText(this, if (isMobile) "Desktop mode" else "Mobile mode", Toast.LENGTH_SHORT).show()
             getCurrentWebView()?.reload()

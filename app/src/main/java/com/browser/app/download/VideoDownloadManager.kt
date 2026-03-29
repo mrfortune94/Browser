@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.webkit.WebView
+import com.browser.app.BrowserConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -40,7 +41,7 @@ class VideoDownloadManager(private val context: Context) {
             setDescription("Downloading video...")
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
-            addRequestHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36")
+            addRequestHeader("User-Agent", BrowserConstants.USER_AGENT_MOBILE)
             setAllowedOverMetered(true)
             setAllowedOverRoaming(true)
         }

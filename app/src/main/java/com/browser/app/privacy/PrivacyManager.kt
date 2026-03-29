@@ -4,6 +4,7 @@ import android.content.Context
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
+import com.browser.app.BrowserConstants
 
 class PrivacyManager(private val context: Context) {
 
@@ -78,7 +79,5 @@ class PrivacyManager(private val context: Context) {
         webView.evaluateJavascript(script, null)
     }
 
-    fun getSpoofedUserAgent(): String {
-        return "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-    }
+    fun getSpoofedUserAgent(): String = BrowserConstants.USER_AGENT_MOBILE
 }

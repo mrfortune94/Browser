@@ -10,7 +10,7 @@ import java.io.ByteArrayInputStream
 class AdBlocker(private val context: Context) {
 
     private val blockedDomains = mutableSetOf<String>()
-    private var isEnabled = true
+    private var adBlockingEnabled = true
 
     suspend fun initialize() = withContext(Dispatchers.IO) {
         loadBlocklist()
@@ -32,7 +32,7 @@ class AdBlocker(private val context: Context) {
     }
 
     fun shouldBlock(request: WebResourceRequest): Boolean {
-        if (!isEnabled) return false
+        if (!adBlockingEnabled) return false
         val url = request.url.toString().lowercase()
         val host = request.url.host?.lowercase() ?: return false
         return blockedDomains.any { domain ->
@@ -41,7 +41,7 @@ class AdBlocker(private val context: Context) {
     }
 
     fun shouldBlock(url: String): Boolean {
-        if (!isEnabled) return false
+        if (!adBlockingEnabled) return false
         val lowerUrl = url.lowercase()
         return blockedDomains.any { domain -> lowerUrl.contains(domain) }
     }
@@ -54,7 +54,7 @@ class AdBlocker(private val context: Context) {
         )
     }
 
-    fun setEnabled(enabled: Boolean) { isEnabled = enabled }
-    fun isEnabled() = isEnabled
+    fun setEnabled(enabled: Boolean) { adBlockingEnabled = enabled }
+    fun isEnabled() = adBlockingEnabled
     fun getBlockedDomainCount() = blockedDomains.size
 }
