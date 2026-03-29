@@ -141,8 +141,9 @@ class ExtensionManager(private val context: Context) {
 
                     cs.cssFiles.forEach { cssFile ->
                         files[cssFile]?.let { css ->
-                            val escaped = css.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-                            val script = "(function() { var style = document.createElement('style'); style.textContent = '$escaped'; document.head.appendChild(style); })();"
+                            // Use a safe injection approach via JSON.parse to avoid JS string escaping issues
+                            val jsonEncoded = org.json.JSONObject.quote(css)
+                            val script = "(function() { var style = document.createElement('style'); style.textContent = JSON.parse($jsonEncoded); document.head.appendChild(style); })();"
                             webView.evaluateJavascript(script, null)
                         }
                     }

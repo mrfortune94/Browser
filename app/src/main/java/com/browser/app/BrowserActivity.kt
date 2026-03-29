@@ -369,7 +369,10 @@ class BrowserActivity : AppCompatActivity() {
                 .setTitle("Video Download")
                 .setView(dialogView)
                 .setPositiveButton("Download") { _, _ ->
-                    val filename = filenameInput.text.toString().ifBlank { "video.mp4" }
+                    val rawName = filenameInput.text.toString().ifBlank { "video.mp4" }
+                    // Sanitize: strip path separators and null bytes, limit length
+                    val filename = rawName.replace(Regex("[/\\\\:*?\"<>|\u0000]"), "_").take(128).ifBlank { "video.mp4" }
+                        .let { if (it.contains('.')) it else "$it.mp4" }
                     lifecycleScope.launch {
                         val result = videoDownloadManager.downloadVideo(videoUrl, filename)
                         result.onSuccess {

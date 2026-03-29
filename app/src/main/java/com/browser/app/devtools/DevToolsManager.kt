@@ -10,6 +10,7 @@ import android.webkit.WebView
 import android.widget.PopupWindow
 import com.browser.app.BrowserTab
 import kotlinx.coroutines.CoroutineScope
+import org.json.JSONObject
 
 class DevToolsManager(
     private val context: Context,

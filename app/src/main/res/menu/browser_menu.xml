@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_devtools"
+        android:title="@string/action_developer_tools"
+        android:icon="@drawable/ic_devtools"
+        app:showAsAction="always"/>
+
+    <item
+        android:id="@+id/action_new_tab"
+        android:title="@string/action_new_tab"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_private_mode"
+        android:title="@string/action_private_mode"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_extensions"
+        android:title="@string/action_extensions"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="@string/action_settings"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_downloads"
+        android:title="@string/action_downloads"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/action_ad_blocking"
+        android:title="@string/action_ad_blocking"
+        android:icon="@drawable/ic_shield"
+        app:showAsAction="never"/>
+</menu>

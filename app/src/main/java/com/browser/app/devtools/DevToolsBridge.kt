@@ -134,7 +134,8 @@ class DevToolsBridge(
     @JavascriptInterface
     fun inspectElement(selector: String) {
         scope.launch(Dispatchers.Main) {
-            val escapedSel = selector.replace("'", "\\'")
+            // Properly escape backslashes first, then quotes to prevent JS injection
+            val escapedSel = selector.replace("\\", "\\\\").replace("'", "\\'")
             pageWebView.evaluateJavascript("""
                 (function() {
                     var el = document.querySelector('$escapedSel');
